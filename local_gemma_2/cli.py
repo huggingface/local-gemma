@@ -14,7 +14,8 @@
 
 import argparse
 
-from transformers import AutoModelForCausalLM, AutoTokenizer, TextStreamer, set_seed
+from transformers import AutoModelForCausalLM, AutoTokenizer, DynamicCache, TextStreamer, set_seed
+from transformers.utils import logging
 
 from .utils.benchmark import benchmark
 from .utils.config import infer_device, infer_dtype, infer_attention_type
@@ -80,6 +81,11 @@ parser.add_argument(
     type=str,
     help=f"Manually selects the model repo to be used in the application.",
 )
+parser.add_argument(
+    "--silent",
+    action="store_true",
+    help="Does NOT print any output except for the model outputs.",
+)
 # Debugging arguments
 parser.add_argument(
     "--seed",
@@ -91,11 +97,16 @@ parser.add_argument(
     action="store_true",
     help="Runs a throughput benchmark on your device.",
 )
-parser.add_argument(
-    "--verbose",
-    action="store_true",
-    help="Prints information regarding the loaded model, selected arguments, and automatically handled exceptions.",
-)
+
+
+def print_help():
+    print("\nYou can now interact with the model. A few tips:")
+    print("- Initialize the program with '--silent' to hide all non-model messages")
+    print("- Input '!exit' to leave the program")
+    print("- Input '!new session' to reset the conversation")
+    print("- Input '!help' to print this message again")
+    print("")
+
 
 def main():
     args = parser.parse_args()
@@ -114,10 +125,11 @@ def main():
     else:
         assistant_model_name = None
 
-    if args.verbose:
+    if not args.silent:
+        logging.disable_progress_bar()  # TODO: this is not working, should suppress "Loading checkpoint shards"
         print("\nLoading model with the following characteristics:")
         print("- Model name:", model_name)
-        print("- Assistant model name", assistant_model_name)
+        print("- Assistant model name:", assistant_model_name)
         print("- Device:", device)
         print("- Data type:", str(dtype))
         print("- Attention type:", attention_type)
@@ -140,20 +152,61 @@ def main():
         if args.seed is not None:
             set_seed(args.seed)
 
-        model_inputs = tokenizer("Hello world.", return_tensors="pt").to(model.device)
-        streamer = TextStreamer(tokenizer, {"skip_special_tokens": True})
-        generation_kwargs = {
-            "do_sample": True,
-            "streamer": streamer,
-            "assistant_model": assistant_model
-        }
-        if args.max_new_tokens is not None:
-            generation_kwargs["max_new_tokens"] = args.max_new_tokens
-        else:
-            generation_kwargs["max_length"] = model.config.max_position_embeddings
+        if not args.silent:
+            print_help()
 
-        gen_out = model.generate(**model_inputs, **generation_kwargs)
+        streamer = TextStreamer(tokenizer, skip_prompt=True, **{"skip_special_tokens": True})
+        cache = DynamicCache()
+        chat_history = []
+        while True:
+            user_input = input(">>> ")
+            if user_input == "!exit":
+                break
+            elif user_input == "!new session":
+                chat_history = []
+                if hasattr(cache, "reset"):
+                    cache.reset()
+                else:
+                    cache = DynamicCache()
+            elif user_input == "!help":
+                print_help()
+            else:
+                chat_history += [{"role": "user", "content": user_input},]
+                tokenized_chat = tokenizer.apply_chat_template(
+                    chat_history, tokenize=True, add_generation_prompt=True, return_tensors="pt"
+                )
+                tokenized_chat = tokenized_chat.to(device)
+                generation_kwargs = {
+                    "do_sample": True,
+                    "streamer": streamer,
+                    "assistant_model": assistant_model,
+                    "return_dict_in_generate": True,
+                    "past_key_values": cache,
+                }
+                if args.max_new_tokens is not None:
+                    generation_kwargs["max_new_tokens"] = args.max_new_tokens
+                else:
+                    generation_kwargs["max_length"] = model.config.max_position_embeddings
 
+                gen_out = model.generate(input_ids=tokenized_chat, **generation_kwargs)
+
+                # Store the cache for the next generation round; Pull the model output into the chat history.
+                cache = gen_out.past_key_values
+                model_tokens = gen_out.sequences[0, tokenized_chat.shape[1]:]
+                model_output_text = tokenizer.decode(model_tokens, skip_special_tokens=True)
+                chat_history += [{"role": "assistant", "content": model_output_text},]
+
+                # Remove the last EOS from the cache, as it is not needed for the next generation round.
+                new_cache_length = gen_out.sequences.shape[1] - 1
+                cache.crop(max_length=new_cache_length )
+
+                # Sanity check: the model output tokens -1 (EOS removed) must match the new tokenization -2
+                # (EOT + /n removed)
+                tokenized_chat = tokenizer.apply_chat_template(
+                    chat_history, tokenize=True, add_generation_prompt=False, return_tensors="pt"
+                )
+                assert tokenized_chat.shape[1] - 2 == gen_out.sequences.shape[1] - 1
+                assert cache.get_seq_length() == gen_out.sequences.shape[1] - 1
 
 if __name__ == '__main__':
     main()
