@@ -3,6 +3,9 @@ import torch
 
 from transformers import AutoModelForCausalLM, AutoTokenizer, TextStreamer, set_seed
 
+from .utils.benchmark import benchmark
+
+
 MODEL_NAME = "google/gemma-1.1-7b-it"
 MAX_NEW_TOKENS = 100
 
@@ -25,6 +28,11 @@ parser.add_argument(
     type=int,
     help="Seed for text generation. Optional, use for reproducibility.",
 )
+parser.add_argument(
+    "--benchmark",
+    action="store_true",
+    help="Runs a throughput benchmark on your device.",
+)
 
 
 def main():
@@ -33,18 +41,21 @@ def main():
     tokenizer = AutoTokenizer.from_pretrained(args.model_name)
     model = AutoModelForCausalLM.from_pretrained(args.model_name, device_map="auto", torch_dtype=torch.bfloat16)
 
-    if args.seed is not None:
-        set_seed(args.seed)
+    if args.benchmark:
+        benchmark(model, tokenizer)
+    else:
+        if args.seed is not None:
+            set_seed(args.seed)
 
-    model_inputs = tokenizer("Hello world.", return_tensors="pt").to(model.device)
-    streamer = TextStreamer(tokenizer, {"skip_special_tokens": True})
+        model_inputs = tokenizer("Hello world.", return_tensors="pt").to(model.device)
+        streamer = TextStreamer(tokenizer, {"skip_special_tokens": True})
 
-    _ = model.generate(
-        **model_inputs,
-        max_length=args.max_new_tokens,
-        streamer=streamer,
-        do_sample=True,
-    )
+        _ = model.generate(
+            **model_inputs,
+            max_length=args.max_new_tokens,
+            streamer=streamer,
+            do_sample=True,
+        )
 
 
 if __name__ == '__main__':

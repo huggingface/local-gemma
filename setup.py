@@ -3,7 +3,8 @@ import setuptools
 
 deps = [
     "torch",
-    "git+https://github.com/huggingface/transformers.git",  # install transformers from `main` for now
+    "accelerate",
+    "transformers",
 ]
 
 
