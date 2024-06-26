@@ -1,10 +1,10 @@
 import argparse
 import torch
 
-from transformers import AutoModelForCausalLM, AutoTokenizer, TextStreamer
+from transformers import AutoModelForCausalLM, AutoTokenizer, TextStreamer, set_seed
 
 MODEL_NAME = "google/gemma-2b"
-MAX_NEW_TOKENS = 20
+MAX_NEW_TOKENS = 100
 
 
 parser = argparse.ArgumentParser(description="Local Gemma 2")
@@ -12,13 +12,18 @@ parser.add_argument(
     "--model-name",
     default=MODEL_NAME,
     type=str,
-    help="",
+    help=f"The model to be used in the application. Defaults to {MODEL_NAME}",
 )
 parser.add_argument(
     "--max-new-tokens",
     default=MAX_NEW_TOKENS,
     type=int,
-    help="",
+    help=f"Number of tokens to be used in each generation round. Defaults to {MAX_NEW_TOKENS}",
+)
+parser.add_argument(
+    "--seed",
+    type=int,
+    help="Seed for text generation. Optional, use for reproducibility.",
 )
 
 
@@ -27,6 +32,9 @@ def main():
 
     tokenizer = AutoTokenizer.from_pretrained(args.model_name)
     model = AutoModelForCausalLM.from_pretrained(args.model_name, device_map="auto", torch_dtype=torch.bfloat16)
+
+    if args.seed is not None:
+        set_seed(args.seed)
 
     model_inputs = tokenizer("Hello world.", return_tensors="pt").to(model.device)
     streamer = TextStreamer(tokenizer, {"skip_special_tokens": True})
