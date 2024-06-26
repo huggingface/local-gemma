@@ -45,6 +45,7 @@ def infer_dtype(dtype: Optional[str]) -> torch.dtype:
     elif dtype == "bfloat16":
         return torch.bfloat16
 
+
 def infer_attention_type(device: str) -> str:
     if device == "cuda" and is_flash_attn_2_available():
         return "flash_attention_2"
