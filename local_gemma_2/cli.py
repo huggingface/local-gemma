@@ -3,7 +3,7 @@ import torch
 
 from transformers import AutoModelForCausalLM, AutoTokenizer, TextStreamer, set_seed
 
-MODEL_NAME = "google/gemma-2b"
+MODEL_NAME = "google/gemma-1.1-7b-it"
 MAX_NEW_TOKENS = 100
 
 

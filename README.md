@@ -6,10 +6,24 @@ Gemma 2 optimized for your local machine
 
 ## Instalation
 
-`pip install -e .`
+```
+pipx install git+https://github.com/huggingface/local-gemma-2
+```
+
+`pipx` creates an isolated Python evironment for the package. See their simple [installation instructions](https://github.com/pypa/pipx?tab=readme-ov-file#install-pipx) if you need to install it.
+
+Alternativelly, you can also install on your Python environment through
+
+```
+pip install git+https://github.com/huggingface/local-gemma-2
+```
+
+(TODO: move to pip package)
 
 ## Usage
 
-`local-gemma-2`
+```
+local-gemma-2
+```
 
 Call `local-gemma-2 -h` for available options.
