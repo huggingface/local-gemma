@@ -12,8 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import torch
-
 from time import time
 from tqdm import tqdm
 
@@ -50,12 +48,16 @@ def benchmark(model, tokenizer):
 
             input_ids = model_inputs.input_ids[:, :prompt_length]
             for _ in tqdm(range(WARMUP_RUNS), desc="Warming up"):
-                model.generate(input_ids, do_sample=False, max_new_tokens=max_new_tokens, min_new_tokens=max_new_tokens)
+                model.generate(
+                    input_ids, do_sample=False, max_new_tokens=max_new_tokens, min_new_tokens=max_new_tokens
+                )
 
             tokens_per_second = []
             for _ in tqdm(range(NUM_RUNS), desc="Benchmarking"):
                 start = time()
-                gen_out = model.generate(input_ids, do_sample=False, max_new_tokens=max_new_tokens, min_new_tokens=max_new_tokens)
+                gen_out = model.generate(
+                    input_ids, do_sample=False, max_new_tokens=max_new_tokens, min_new_tokens=max_new_tokens
+                )
                 end = time()
                 if gen_out.shape[1] != prompt_length + max_new_tokens:
                     raise ValueError(
