@@ -20,7 +20,22 @@ Alternativelly, you can also install on your Python environment through
 pip install local-gemma-2
 ```
 
-## Usage
+## Python Usage
+
+```python
+from local_gemma_2 import LocalGemma2ForCausalLM, AutoTokenizer
+
+# TODO(SG): update model and API before release
+model = LocalGemma2ForCausalLM.from_pretrained("fxmarty/tiny-random-GemmaForCausalLM", preset="speed")
+tokenizer = AutoTokenizer.from_pretrained("fxmarty/tiny-random-GemmaForCausalLM")
+
+prompt_ids = tokenizer("The cat sat on the mat", return_attention_mask=True, return_tensors="pt")
+gen_ids = model.generate(**prompt_ids)
+
+gen_text = tokenizer.batch_decode(gen_ids)
+```
+
+## CLI Usage
 
 ```
 local-gemma-2
