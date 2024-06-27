@@ -17,7 +17,7 @@ import logging
 
 from transformers import QuantoConfig, is_bitsandbytes_available, BitsAndBytesConfig
 from transformers.utils import is_quanto_available, is_torch_sdpa_available, is_accelerate_available
-from transformers.models.gemma import GemmaForCausalLM, GemmaConfig
+from transformers.models.gemma2 import Gemma2ForCausalLM, Gemma2Config
 from .utils.config import infer_device, infer_dtype
 
 
@@ -53,7 +53,7 @@ PRESET_MAPPING = {
     "memory_extreme": MEMORY_EXTREME,
 }
 
-class LocalGemma2ForCausalLM(GemmaForCausalLM):
+class LocalGemma2ForCausalLM(Gemma2ForCausalLM):
     @staticmethod
     # TODO(SG): potentially bypass these checks by pinning requirements
     def get_preset_kwargs(preset: str, device: str) -> Dict:
@@ -103,7 +103,7 @@ class LocalGemma2ForCausalLM(GemmaForCausalLM):
         pretrained_model_name_or_path: Optional[Union[str, os.PathLike]],
         preset: Optional[str] = "exact",
         *model_args,
-        config: Optional[Union[GemmaConfig, str, os.PathLike]] = None,
+        config: Optional[Union[Gemma2Config, str, os.PathLike]] = None,
         cache_dir: Optional[Union[str, os.PathLike]] = None,
         ignore_mismatched_sizes: bool = False,
         force_download: bool = False,
@@ -112,7 +112,7 @@ class LocalGemma2ForCausalLM(GemmaForCausalLM):
         revision: str = "main",
         use_safetensors: bool = None,
         **kwargs,
-    ) -> GemmaForCausalLM:
+    ) -> Gemma2ForCausalLM:
         device = infer_device()
         preset_kwargs = cls.get_preset_kwargs(preset, device)
 
@@ -153,11 +153,6 @@ class LocalGemma2ForCausalLM(GemmaForCausalLM):
 
         # TODO(SG): decide on automatic device placement
         model = model.to(device)
-
-        # TODO(SG): see whether we can re-enable torch compile at a later date
-        # if preset != "memory_extreme" and device == "cuda":
-        #    model.generation_config.cache_implementation = "static"
-        #    model.forward = torch.compile(model.forward, mode="reduce-overhead", fullgraph=True)
 
         if preset == "memory_extreme":
             model.generation_config.cache_implementation = "quantized"
