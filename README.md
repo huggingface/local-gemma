@@ -57,7 +57,7 @@ model = LocalGemma2ForCausalLM.from_pretrained("fxmarty/tiny-random-GemmaForCaus
 tokenizer = AutoTokenizer.from_pretrained("fxmarty/tiny-random-GemmaForCausalLM")
 
 prompt_ids = tokenizer("The cat sat on the mat", return_attention_mask=True, return_tensors="pt")
-gen_ids = model.generate(**prompt_ids)
+gen_ids = model.generate(**prompt_ids.to(model.device))
 
 gen_text = tokenizer.batch_decode(gen_ids)
 ```

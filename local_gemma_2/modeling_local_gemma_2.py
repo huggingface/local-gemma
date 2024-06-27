@@ -36,7 +36,6 @@ SPEED = {
 
 MEMORY = {
     "attn_implementation": "sdpa",
-    "load_in_4_bit": True,
     "quantization_config": {
         "weights": "int4"
     }
@@ -44,7 +43,6 @@ MEMORY = {
 
 MEMORY_EXTREME = {
     "attn_implementation": "sdpa",
-    "load_in_4_bit": True,
     "quantization_config": {
         "weights": "int2"
     }
