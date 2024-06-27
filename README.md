@@ -20,6 +20,10 @@ Alternativelly, you can also install on your Python environment through
 pip install local-gemma-2
 ```
 
+### Docker Installation
+
+> TODO(SG): add installation
+
 ## Usage
 
 You can chat with the model through an interactive session by calling
