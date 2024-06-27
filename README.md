@@ -20,10 +20,37 @@ Alternativelly, you can also install on your Python environment through
 pip install local-gemma-2
 ```
 
+## CLI Usage
+
+```
+local-gemma-2
+```
+
+Call `local-gemma-2 -h` for available options.
+
 ## Python Usage
 
+Local Gemma-2 can be run locally through a Python interpreter using the familiar Transformers API. Local Gemma-2
+provides four presets that trade-off accuracy, speed and memory[^1]:
+
+| Mode           | Performance (?) | Inference Speed (tok/s) | Memory (GB) |
+|----------------|-----------------|-------------------------|-------------|
+| exact          |                 |                         |             |
+| speed          |                 |                         |             |
+| memory         |                 |                         |             |
+| memory_extreme |                 |                         |             |
+
+Based on the results above, you can select the preset that is most suited to your use-case. For example, if you require
+the fastest inference, you should use the "speed" preset. Likewise, if you are constrained on memory, you should use 
+either the "memory" or "memory_extreme" presets. 
+
+To enable a preset, import the model class from the `local_gemma_2` package and pass the `preset` argument when 
+loading the model `from_pretrained`. For example, the following code-snippet enables the "speed" preset for fastest 
+inference:
+
 ```python
-from local_gemma_2 import LocalGemma2ForCausalLM, AutoTokenizer
+from local_gemma_2 import LocalGemma2ForCausalLM
+from transformers import AutoTokenizer
 
 # TODO(SG): update model and API before release
 model = LocalGemma2ForCausalLM.from_pretrained("fxmarty/tiny-random-GemmaForCausalLM", preset="speed")
@@ -35,10 +62,15 @@ gen_ids = model.generate(**prompt_ids)
 gen_text = tokenizer.batch_decode(gen_ids)
 ```
 
-## CLI Usage
+### Preset Details
 
-```
-local-gemma-2
-```
+| Mode           | Attn Implementation | Torch Compile | Weights Dtype | CPU Offload |
+|----------------|---------------------|---------------|---------------|-------------|
+| exact          | eager               | yes           | fp16          | no          |
+| speed          | sdpa                | yes           | fp16          | no          |
+| memory         | sdpa                | yes           | int4          | no          |
+| memory-extreme | sdpa                | no            | int2          | yes         |
 
-Call `local-gemma-2 -h` for available options.
+---
+
+[^1]: Benchmark performed using batch size 1 on an 80GB A100 GPU.

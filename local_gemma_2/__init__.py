@@ -13,4 +13,3 @@
 # limitations under the License.
 
 from .modeling_local_gemma_2 import LocalGemma2ForCausalLM
-from transformers import AutoTokenizer
