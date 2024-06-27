@@ -15,7 +15,7 @@
 
 import torch
 
-from typing import Optional
+from typing import Dict, Optional
 
 from transformers.utils import is_flash_attn_2_available
 
@@ -50,3 +50,32 @@ def infer_attention_type(device: str) -> str:
     if device == "cuda" and is_flash_attn_2_available():
         return "flash_attention_2"
     return "sdpa"
+
+
+def get_prompt(mode: str) -> str:
+    if mode == "chat":
+        return ""
+    elif mode == "factual":
+        return "Please reply to the following requests with short and factual answers.\n\n"
+    elif mode == "creative":
+        return (
+            "Write a response that appropriately completes the request. Be descriptive, fluid, and follow the context "
+            "provided.\n\n"
+        )
+    else:
+        raise ValueError(f"Unknown mode: {mode}")
+
+
+def get_generation_kwargs(mode: str) -> Dict:
+    generation_kwargs = {"do_sample": True}
+    if mode == "chat":
+        generation_kwargs["temperature"] = 0.7
+    elif mode == "factual":
+        generation_kwargs["temperature"] = 0.3
+        generation_kwargs["repetition_penalty"] = 1.2
+    elif mode == "creative":
+        generation_kwargs["min_p"] = 0.08
+        generation_kwargs["temperature"] = 1.5
+    else:
+        raise ValueError(f"Unknown mode: {mode}")
+    return generation_kwargs

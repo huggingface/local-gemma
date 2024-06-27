@@ -18,7 +18,7 @@ from transformers import AutoModelForCausalLM, AutoTokenizer, DynamicCache, Text
 from transformers.utils import logging
 
 from .utils.benchmark import benchmark
-from .utils.config import infer_device, infer_dtype, infer_attention_type
+from .utils.config import infer_device, infer_dtype, infer_attention_type, get_prompt, get_generation_kwargs
 
 
 FULL_MODEL_NAME = "google/gemma-1.1-7b-it"
@@ -49,11 +49,12 @@ parser.add_argument(
 parser.add_argument(
     "--mode",
     type=str,
-    choices=["chat", "non-hallucinating", "creative"],
+    choices=["chat", "factual", "creative"],
     default="chat",
     help=(
-        "Sets the mode of operation of the model. 'chat' is optimized for general conversation, 'non-hallucinating' "
-        "is designed to minimize hallucinations, and 'creative' is optimized for creative writing."
+        "Sets the mode of operation of the model. 'chat' is optimized for general conversation, 'factual' is designed "
+        "to minimize hallucinations, and 'creative' is optimized for creative writing. Note that 'factual' and "
+        "'creative' prepend text to your prompt."
     ),
 )
 parser.add_argument(
@@ -114,6 +115,8 @@ def main():
     device = infer_device(args.device)
     dtype = infer_dtype(args.dtype)
     attention_type = infer_attention_type(device)
+    generation_kwargs = get_generation_kwargs(args.mode)
+    base_prompt = get_prompt(args.mode)
     model_name = args.model_name or FULL_MODEL_NAME if args.optimization == "quality" else QUANTIZED_MODEL_NAME
 
     # Triggers assisted generation on CUDA or MPS devices, assuming the default model is used. Assisted generation is
@@ -133,6 +136,8 @@ def main():
         print("- Device:", device)
         print("- Data type:", str(dtype))
         print("- Attention type:", attention_type)
+        print("- Generation arguments:", str(generation_kwargs))
+        print("- Base prompt:", repr(base_prompt) if len(base_prompt) > 0 else "None")
         print("")
 
     tokenizer = AutoTokenizer.from_pretrained(model_name)
@@ -171,18 +176,23 @@ def main():
             elif user_input == "!help":
                 print_help()
             else:
+                # Inject the base prompt if the chat history is empty
+                if len(chat_history) == 0:
+                    user_input = base_prompt + user_input
+
                 chat_history += [{"role": "user", "content": user_input},]
                 tokenized_chat = tokenizer.apply_chat_template(
                     chat_history, tokenize=True, add_generation_prompt=True, return_tensors="pt"
                 )
                 tokenized_chat = tokenized_chat.to(device)
-                generation_kwargs = {
-                    "do_sample": True,
-                    "streamer": streamer,
-                    "assistant_model": assistant_model,
-                    "return_dict_in_generate": True,
-                    "past_key_values": cache,
-                }
+                generation_kwargs.update(
+                    {
+                        "streamer": streamer,
+                        "assistant_model": assistant_model,
+                        "return_dict_in_generate": True,
+                        "past_key_values": cache,
+                    }
+                )
                 if args.max_new_tokens is not None:
                     generation_kwargs["max_new_tokens"] = args.max_new_tokens
                 else:
