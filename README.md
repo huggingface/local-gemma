@@ -46,7 +46,7 @@ either the "memory" or "memory_extreme" presets.
 
 To enable a preset, import the model class from the `local_gemma_2` package and pass the `preset` argument when 
 loading the model `from_pretrained`. For example, the following code-snippet enables the "speed" preset for fastest 
-inference:
+inference with the Gemma-2 base model:
 
 ```python
 from local_gemma_2 import LocalGemma2ForCausalLM
@@ -56,10 +56,33 @@ from transformers import AutoTokenizer
 model = LocalGemma2ForCausalLM.from_pretrained("fxmarty/tiny-random-GemmaForCausalLM", preset="speed")
 tokenizer = AutoTokenizer.from_pretrained("fxmarty/tiny-random-GemmaForCausalLM")
 
-prompt_ids = tokenizer("The cat sat on the mat", return_attention_mask=True, return_tensors="pt")
-gen_ids = model.generate(**prompt_ids.to(model.device))
+model_inputs = tokenizer("The cat sat on the mat", return_attention_mask=True, return_tensors="pt")
+generated_ids = model.generate(**model_inputs.to(model.device))
 
-gen_text = tokenizer.batch_decode(gen_ids)
+decoded_text = tokenizer.batch_decode(generated_ids)
+```
+
+When using an instruction-tuned model (`-it`) for conversational use, prepare the inputs using a chat-template:
+
+```python
+from local_gemma_2 import LocalGemma2ForCausalLM
+from transformers import AutoTokenizer
+
+# TODO(SG): update model and API before release
+model = LocalGemma2ForCausalLM.from_pretrained("fxmarty/tiny-random-GemmaForCausalLM", preset="speed")
+tokenizer = AutoTokenizer.from_pretrained("fxmarty/tiny-random-GemmaForCausalLM")
+
+messages = [
+    {"role": "user", "content": "What is your favourite condiment?"},
+    {"role": "assistant", "content": "Well, I'm quite partial to a good squeeze of fresh lemon juice. It adds just the right amount of zesty flavour to whatever I'm cooking up in the kitchen!"},
+    {"role": "user", "content": "Do you have mayonnaise recipes?"}
+]
+
+encodeds = tokenizer.apply_chat_template(messages, return_tensors="pt")
+model_inputs = encodeds.to(model.device)
+
+generated_ids = model.generate(model_inputs, max_new_tokens=1000, do_sample=True)
+decoded_text = tokenizer.batch_decode(generated_ids)
 ```
 
 ### Preset Details
