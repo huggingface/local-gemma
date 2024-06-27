@@ -143,6 +143,7 @@ class LocalGemma2ForCausalLM(GemmaForCausalLM):
             model.forward = torch.compile(model.forward, mode="reduce-overhead", fullgraph=True)
         elif preset == "memory_extreme":
             model.generation_config.cache_implementation = "quantized"
-            model = cpu_offload(model, execution_device=device)
+            if device == "cuda":
+                model = cpu_offload(model, execution_device="cuda")
 
         return model
