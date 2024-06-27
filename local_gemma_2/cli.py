@@ -13,12 +13,13 @@
 # limitations under the License.
 
 import argparse
+import sys
 
 from transformers import AutoModelForCausalLM, AutoTokenizer, DynamicCache, TextStreamer, set_seed
 from transformers.utils import logging
 
 from .utils.benchmark import benchmark
-from .utils.config import infer_device, infer_dtype, infer_attention_type
+from .utils.config import infer_device, infer_dtype, infer_attention_type, get_prompt, get_generation_kwargs
 
 
 FULL_MODEL_NAME = "google/gemma-1.1-7b-it"
@@ -29,6 +30,16 @@ QUANTIZED_ASSISTANT_MODEL_NAME = None
 
 parser = argparse.ArgumentParser(description="Local Gemma 2")
 
+# Prompt argument
+parser.add_argument(
+    "prompt",
+    type=str,
+    nargs="*",
+    help=(
+        "Prompt to the model. For an interactive session, leave this field empty. Using this field will activate "
+        "'--silent'"
+    ),
+)
 # Arguments that control text generation (sorted by importance)
 parser.add_argument(
     "--auth-token",
@@ -49,11 +60,12 @@ parser.add_argument(
 parser.add_argument(
     "--mode",
     type=str,
-    choices=["chat", "non-hallucinating", "creative"],
+    choices=["chat", "factual", "creative"],
     default="chat",
     help=(
-        "Sets the mode of operation of the model. 'chat' is optimized for general conversation, 'non-hallucinating' "
-        "is designed to minimize hallucinations, and 'creative' is optimized for creative writing."
+        "Sets the mode of operation of the model. 'chat' is optimized for general conversation, 'factual' is designed "
+        "to minimize hallucinations, and 'creative' is optimized for creative writing. Note that 'factual' and "
+        "'creative' prepend text to your prompt."
     ),
 )
 parser.add_argument(
@@ -110,10 +122,14 @@ def print_help():
 
 def main():
     args = parser.parse_args()
+    if args.prompt:
+        args.silent = True
 
     device = infer_device(args.device)
     dtype = infer_dtype(args.dtype)
     attention_type = infer_attention_type(device)
+    generation_kwargs = get_generation_kwargs(args.mode)
+    base_prompt = get_prompt(args.mode)
     model_name = args.model_name or FULL_MODEL_NAME if args.optimization == "quality" else QUANTIZED_MODEL_NAME
 
     # Triggers assisted generation on CUDA or MPS devices, assuming the default model is used. Assisted generation is
@@ -133,6 +149,8 @@ def main():
         print("- Device:", device)
         print("- Data type:", str(dtype))
         print("- Attention type:", attention_type)
+        print("- Generation arguments:", str(generation_kwargs))
+        print("- Base prompt:", repr(base_prompt) if len(base_prompt) > 0 else "None")
         print("")
 
     tokenizer = AutoTokenizer.from_pretrained(model_name)
@@ -155,11 +173,22 @@ def main():
         if not args.silent:
             print_help()
 
+        starting_prompt = args.prompt
         streamer = TextStreamer(tokenizer, skip_prompt=True, **{"skip_special_tokens": True})
         cache = DynamicCache()
         chat_history = []
         while True:
-            user_input = input(">>> ")
+            # Get input to the model
+            if starting_prompt is not None:
+                user_input = " ".join(starting_prompt)
+            else:
+                # Try/except to allow piping on bash, like `echo "1+1=" | local-gemma-2`
+                try:
+                    user_input = input(">>> ")
+                except EOFError:
+                    break
+
+            # Handle special commands
             if user_input == "!exit":
                 break
             elif user_input == "!new session":
@@ -170,19 +199,26 @@ def main():
                     cache = DynamicCache()
             elif user_input == "!help":
                 print_help()
+
+            # Generate text
             else:
+                # Inject the base prompt if the chat history is empty
+                if len(chat_history) == 0:
+                    user_input = base_prompt + user_input
+
                 chat_history += [{"role": "user", "content": user_input},]
                 tokenized_chat = tokenizer.apply_chat_template(
                     chat_history, tokenize=True, add_generation_prompt=True, return_tensors="pt"
                 )
                 tokenized_chat = tokenized_chat.to(device)
-                generation_kwargs = {
-                    "do_sample": True,
-                    "streamer": streamer,
-                    "assistant_model": assistant_model,
-                    "return_dict_in_generate": True,
-                    "past_key_values": cache,
-                }
+                generation_kwargs.update(
+                    {
+                        "streamer": streamer,
+                        "assistant_model": assistant_model,
+                        "return_dict_in_generate": True,
+                        "past_key_values": cache,
+                    }
+                )
                 if args.max_new_tokens is not None:
                     generation_kwargs["max_new_tokens"] = args.max_new_tokens
                 else:
@@ -207,6 +243,9 @@ def main():
                 )
                 assert tokenized_chat.shape[1] - 2 == gen_out.sequences.shape[1] - 1
                 assert cache.get_seq_length() == gen_out.sequences.shape[1] - 1
+
+            if starting_prompt is not None:
+                break
 
 if __name__ == '__main__':
     main()
