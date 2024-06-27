@@ -16,7 +16,8 @@ from typing import Optional, Union, Dict
 import logging
 
 import torch
-from transformers.utils import is_bitsandbytes_available, is_torch_sdpa_available, is_accelerate_available
+from transformers import QuantoConfig
+from transformers.utils import is_quanto_available, is_torch_sdpa_available, is_accelerate_available
 from transformers.models.gemma import GemmaForCausalLM, GemmaConfig
 from .utils.config import infer_device, infer_dtype, infer_attention_type
 
@@ -33,7 +34,19 @@ SPEED = {
 MEMORY = {
     "attn_implementation": "sdpa",
     "load_in_4_bit": True,
+    "quantization_config": {
+        "weights": "int4"
+    }
 }
+
+MEMORY_EXTREME = {
+    "attn_implementation": "sdpa",
+    "load_in_4_bit": True,
+    "quantization_config": {
+        "weights": "int2"
+    }
+}
+
 
 PRESET_MAPPING = {
     "exact": EXACT,
@@ -53,7 +66,7 @@ class LocalGemma2ForCausalLM(GemmaForCausalLM):
                 "The 'speed' preset requires PyTorch v2.1.1 or later. Please install torch>=2.1.1 through the "
                 "official instructions: https://pytorch.org/"
             )
-        if preset == "memory":
+        if preset in ["memory", "memory_extreme"]:
             if not is_torch_sdpa_available():
                 logger.warning(
                     "Detected PyTorch version <2.1.1. For faster inference through SDPA attention, install PyTorch "
@@ -61,10 +74,10 @@ class LocalGemma2ForCausalLM(GemmaForCausalLM):
                 )
                 preset_kwargs["attn_implementation"] = "eager"
             # TODO(SG): determine the best quantisation scheme (bnb vs quanto vs awq vs etc.), e.g. on a per-device basis?
-            if not is_bitsandbytes_available():
+            if not is_quanto_available():
                 raise ImportError(
-                    "The 'memory' preset requires the `bitsandbytes` package. Please install bitsandbytes through: "
-                    "`pip install --upgrade bitsandbytes`."
+                    f"The {preset} preset requires the `quanto` package. Please install quanto through: "
+                    "`pip install --upgrade quanto`."
                 )
         return preset_kwargs
 
@@ -119,6 +132,10 @@ class LocalGemma2ForCausalLM(GemmaForCausalLM):
         torch_dtype = kwargs.pop("torch_dtype", None)
         preset_kwargs["torch_dtype"] = infer_dtype(torch_dtype)
 
+        quantization_config = kwargs.pop("quantization_config", None)
+        if quantization_config is None and preset_kwargs.get("quantization_config"):
+            preset_kwargs["quantization_config"] = QuantoConfig(**preset_kwargs["quantization_config"])
+
         if kwargs is not None:
             for key in kwargs:
                 if key in preset_kwargs:
@@ -142,14 +159,10 @@ class LocalGemma2ForCausalLM(GemmaForCausalLM):
         device = infer_device()
         model.to(device)
 
-        if preset not in ["memory", "memory_extreme"] and device == "cuda":
+        if preset != "memory_extreme" and device == "cuda":
             model.generation_config.cache_implementation = "static"
             model.forward = torch.compile(model.forward, mode="reduce-overhead", fullgraph=True)
-        elif preset in ["memory", "memory_extreme"]:
+        elif preset == "memory_extreme":
             model.generation_config.cache_implementation = "quantized"
-
-        if preset == "memory_extreme":
-            # TODO(SG): register accelerate hooks for cpu offloading
-            model = model
 
         return model
