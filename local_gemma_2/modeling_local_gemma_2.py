@@ -19,7 +19,10 @@ import torch
 from transformers import QuantoConfig
 from transformers.utils import is_quanto_available, is_torch_sdpa_available, is_accelerate_available
 from transformers.models.gemma import GemmaForCausalLM, GemmaConfig
-from .utils.config import infer_device, infer_dtype, infer_attention_type
+from .utils.config import infer_device, infer_dtype
+
+if is_accelerate_available():
+    from accelerate import cpu_offload
 
 logger = logging.getLogger(__name__)
 
@@ -79,43 +82,19 @@ class LocalGemma2ForCausalLM(GemmaForCausalLM):
                     f"The {preset} preset requires the `quanto` package. Please install quanto through: "
                     "`pip install --upgrade quanto`."
                 )
+        if preset == "memory_extreme" and not is_accelerate_available():
+            raise ImportError(
+                f"The `memory_extreme` preset requires the `accelerate` package. Please install accelerate through: "
+                "`pip install --upgrade accelerate`."
+            )
         return preset_kwargs
-
-    def enable_cpu_offload(self, gpu_id: Optional[int] = 0):
-        r"""
-        Offloads all sub-models to CPU using accelerate, reducing memory usage with a low impact on performance. This
-        method moves one whole sub-model at a time to the GPU when it is used, and the sub-model remains in GPU until
-        the next sub-model runs.
-
-        Args:
-            gpu_id (`int`, *optional*, defaults to 0):
-                GPU id on which the sub-models will be loaded and offloaded.
-        """
-        if is_accelerate_available():
-            from accelerate import cpu_offload_with_hook
-        else:
-            raise ImportError("`enable_model_cpu_offload` requires `accelerate`.")
-
-        device = torch.device(f"cuda:{gpu_id}")
-        self.to("cpu")
-
-        # clear cache, otherwise we don't see the memory savings (but they probably exist)
-        torch.cuda.empty_cache()
-
-        self.model.embed_tokens = cpu_offload_with_hook(self.model.embed_tokens, device)
-
-        hook = None
-        for layer in self.model.layers:
-            _, hook = cpu_offload_with_hook(layer, device, prev_module_hook=hook)
-
-        # TODO(SG): finish
 
     @classmethod
     def from_pretrained(
         cls,
         pretrained_model_name_or_path: Optional[Union[str, os.PathLike]],
-        *model_args,
         preset: Optional[str] = "exact",
+        *model_args,
         config: Optional[Union[GemmaConfig, str, os.PathLike]] = None,
         cache_dir: Optional[Union[str, os.PathLike]] = None,
         ignore_mismatched_sizes: bool = False,
@@ -164,5 +143,6 @@ class LocalGemma2ForCausalLM(GemmaForCausalLM):
             model.forward = torch.compile(model.forward, mode="reduce-overhead", fullgraph=True)
         elif preset == "memory_extreme":
             model.generation_config.cache_implementation = "quantized"
+            model = cpu_offload(model, execution_device=device)
 
         return model
