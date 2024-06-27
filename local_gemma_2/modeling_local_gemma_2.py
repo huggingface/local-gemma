@@ -53,7 +53,7 @@ PRESET_MAPPING = {
     "exact": EXACT,
     "speed": SPEED,
     "memory": MEMORY,
-    "memory_extreme": MEMORY,
+    "memory_extreme": MEMORY_EXTREME,
 }
 
 class LocalGemma2ForCausalLM(GemmaForCausalLM):
