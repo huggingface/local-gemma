@@ -15,7 +15,6 @@ import os
 from typing import Optional, Union, Dict
 import logging
 
-import torch
 from transformers import QuantoConfig, is_bitsandbytes_available, BitsAndBytesConfig
 from transformers.utils import is_quanto_available, is_torch_sdpa_available, is_accelerate_available
 from transformers.models.gemma import GemmaForCausalLM, GemmaConfig
@@ -125,7 +124,10 @@ class LocalGemma2ForCausalLM(GemmaForCausalLM):
             preset_kwargs["quantization_config"] = quantization_config
         elif preset_kwargs.get("quantization_config"):
             if device == "cuda" and preset == "memory":
-                preset_kwargs["quantization_config"] = BitsAndBytesConfig(load_in_4bit=True, bnb_4bit_compute_dtype=preset_kwargs["torch_dtype"])
+                preset_kwargs["quantization_config"] = BitsAndBytesConfig(
+                    load_in_4bit=True,
+                    bnb_4bit_compute_dtype=preset_kwargs["torch_dtype"],
+                )
             else:
                 preset_kwargs["quantization_config"] = QuantoConfig(weights=preset_kwargs["quantization_config"]["weights"])
 
@@ -152,10 +154,12 @@ class LocalGemma2ForCausalLM(GemmaForCausalLM):
         # TODO(SG): decide on automatic device placement
         model = model.to(device)
 
-        if preset != "memory_extreme" and device == "cuda":
-            model.generation_config.cache_implementation = "static"
-            model.forward = torch.compile(model.forward, mode="reduce-overhead", fullgraph=True)
-        elif preset == "memory_extreme":
+        # TODO(SG): see whether we can re-enable torch compile at a later date
+        # if preset != "memory_extreme" and device == "cuda":
+        #    model.generation_config.cache_implementation = "static"
+        #    model.forward = torch.compile(model.forward, mode="reduce-overhead", fullgraph=True)
+
+        if preset == "memory_extreme":
             model.generation_config.cache_implementation = "quantized"
 
         return model
