@@ -16,13 +16,11 @@ from typing import Optional, Union, Dict
 import logging
 
 import torch
-from transformers import QuantoConfig
+from transformers import QuantoConfig, is_bitsandbytes_available, BitsAndBytesConfig
 from transformers.utils import is_quanto_available, is_torch_sdpa_available, is_accelerate_available
 from transformers.models.gemma import GemmaForCausalLM, GemmaConfig
 from .utils.config import infer_device, infer_dtype
 
-if is_accelerate_available():
-    from accelerate import cpu_offload
 
 logger = logging.getLogger(__name__)
 
@@ -59,7 +57,8 @@ PRESET_MAPPING = {
 class LocalGemma2ForCausalLM(GemmaForCausalLM):
     @staticmethod
     # TODO(SG): potentially bypass these checks by pinning requirements
-    def check_preset(preset: str, preset_kwargs: Dict) -> Dict:
+    def get_preset_kwargs(preset: str, device: str) -> Dict:
+        preset_kwargs = PRESET_MAPPING.get(preset)
         if preset_kwargs is None:
             raise ValueError(f"Got invalid `preset` {preset}. Ensure `preset` is one of: {list(PRESET_MAPPING.keys())}")
         if preset == "speed" and not is_torch_sdpa_available():
@@ -74,17 +73,29 @@ class LocalGemma2ForCausalLM(GemmaForCausalLM):
                     "v2.1.1 or later through the official instructions: https://pytorch.org/"
                 )
                 preset_kwargs["attn_implementation"] = "eager"
-            # TODO(SG): determine the best quantisation scheme (bnb vs quanto vs awq vs etc.), e.g. on a per-device basis?
-            if not is_quanto_available():
+            if device == "cuda" and not is_bitsandbytes_available():
                 raise ImportError(
-                    f"The {preset} preset requires the `quanto` package. Please install quanto through: "
+                    f"The {preset} preset on CUDA requires the `bitsandbytes` package. Please install bitsandbytes through: "
+                    "`pip install --upgrade bitsandbytes`."
+                )
+            elif device != "cuda" and not is_quanto_available():
+                raise ImportError(
+                    f"The {preset} preset on {device} requires the `quanto` package. Please install quanto through: "
                     "`pip install --upgrade quanto`."
                 )
-        if preset == "memory_extreme" and not is_accelerate_available():
-            raise ImportError(
-                f"The `memory_extreme` preset requires the `accelerate` package. Please install accelerate through: "
-                "`pip install --upgrade accelerate`."
-            )
+        if preset == "memory_extreme":
+            if not is_accelerate_available():
+                raise ImportError(
+                    f"The `memory_extreme` preset requires the `accelerate` package. Please install accelerate through: "
+                    "`pip install --upgrade accelerate`."
+                )
+            if not is_quanto_available():
+                raise ImportError(
+                    f"The `memory_extreme` preset on {device} requires the `quanto` package. Please install quanto through: "
+                    "`pip install --upgrade quanto`."
+                )
+            if device == "cuda":
+                preset_kwargs["device_map"] = "auto"
         return preset_kwargs
 
     @classmethod
@@ -103,15 +114,20 @@ class LocalGemma2ForCausalLM(GemmaForCausalLM):
         use_safetensors: bool = None,
         **kwargs,
     ) -> GemmaForCausalLM:
-        preset_kwargs: Dict = PRESET_MAPPING.get(preset)
-        preset_kwargs = cls.check_preset(preset, preset_kwargs)
+        device = infer_device()
+        preset_kwargs = cls.get_preset_kwargs(preset, device)
 
         torch_dtype = kwargs.pop("torch_dtype", None)
         preset_kwargs["torch_dtype"] = infer_dtype(torch_dtype)
 
         quantization_config = kwargs.pop("quantization_config", None)
-        if quantization_config is None and preset_kwargs.get("quantization_config"):
-            preset_kwargs["quantization_config"] = QuantoConfig(**preset_kwargs["quantization_config"])
+        if quantization_config is not None:
+            preset_kwargs["quantization_config"] = quantization_config
+        elif preset_kwargs.get("quantization_config"):
+            if device == "cuda" and preset == "memory":
+                preset_kwargs["quantization_config"] = BitsAndBytesConfig(load_in_4bit=True, bnb_4bit_compute_dtype=preset_kwargs["torch_dtype"])
+            else:
+                preset_kwargs["quantization_config"] = QuantoConfig(weights=preset_kwargs["quantization_config"]["weights"])
 
         if kwargs is not None:
             for key in kwargs:
@@ -133,15 +149,13 @@ class LocalGemma2ForCausalLM(GemmaForCausalLM):
             **kwargs,
         )
 
-        device = infer_device()
-        model.to(device)
+        # TODO(SG): decide on automatic device placement
+        model = model.to(device)
 
         if preset != "memory_extreme" and device == "cuda":
             model.generation_config.cache_implementation = "static"
             model.forward = torch.compile(model.forward, mode="reduce-overhead", fullgraph=True)
         elif preset == "memory_extreme":
             model.generation_config.cache_implementation = "quantized"
-            if device == "cuda":
-                model = cpu_offload(model, execution_device="cuda")
 
         return model

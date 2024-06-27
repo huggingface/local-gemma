@@ -62,13 +62,13 @@ generated_ids = model.generate(**model_inputs.to(model.device))
 decoded_text = tokenizer.batch_decode(generated_ids)
 ```
 
-When using an instruction-tuned model (`-it`) for conversational use, prepare the inputs using a chat-template:
+When using an instruction-tuned model (prefixed by `-it`) for conversational use, prepare the inputs using a chat-template:
 
 ```python
 from local_gemma_2 import LocalGemma2ForCausalLM
 from transformers import AutoTokenizer
 
-# TODO(SG): update model and API before release
+# TODO(SG): update to -it model and API before release
 model = LocalGemma2ForCausalLM.from_pretrained("fxmarty/tiny-random-GemmaForCausalLM", preset="speed")
 tokenizer = AutoTokenizer.from_pretrained("fxmarty/tiny-random-GemmaForCausalLM")
 
