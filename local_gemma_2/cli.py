@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import argparse
+import sys
 
 from transformers import AutoModelForCausalLM, AutoTokenizer, DynamicCache, TextStreamer, set_seed
 from transformers.utils import logging
@@ -29,6 +30,16 @@ QUANTIZED_ASSISTANT_MODEL_NAME = None
 
 parser = argparse.ArgumentParser(description="Local Gemma 2")
 
+# Prompt argument
+parser.add_argument(
+    "prompt",
+    type=str,
+    nargs="*",
+    help=(
+        "Prompt to the model. For an interactive session, leave this field empty. Using this field will activate "
+        "'--silent'"
+    ),
+)
 # Arguments that control text generation (sorted by importance)
 parser.add_argument(
     "--auth-token",
@@ -111,6 +122,8 @@ def print_help():
 
 def main():
     args = parser.parse_args()
+    if args.prompt:
+        args.silent = True
 
     device = infer_device(args.device)
     dtype = infer_dtype(args.dtype)
@@ -160,11 +173,22 @@ def main():
         if not args.silent:
             print_help()
 
+        starting_prompt = args.prompt
         streamer = TextStreamer(tokenizer, skip_prompt=True, **{"skip_special_tokens": True})
         cache = DynamicCache()
         chat_history = []
         while True:
-            user_input = input(">>> ")
+            # Get input to the model
+            if starting_prompt is not None:
+                user_input = " ".join(starting_prompt)
+            else:
+                # Try/except to allow piping on bash, like `echo "1+1=" | local-gemma-2`
+                try:
+                    user_input = input(">>> ")
+                except EOFError:
+                    break
+
+            # Handle special commands
             if user_input == "!exit":
                 break
             elif user_input == "!new session":
@@ -175,6 +199,8 @@ def main():
                     cache = DynamicCache()
             elif user_input == "!help":
                 print_help()
+
+            # Generate text
             else:
                 # Inject the base prompt if the chat history is empty
                 if len(chat_history) == 0:
@@ -217,6 +243,9 @@ def main():
                 )
                 assert tokenized_chat.shape[1] - 2 == gen_out.sequences.shape[1] - 1
                 assert cache.get_seq_length() == gen_out.sequences.shape[1] - 1
+
+            if starting_prompt is not None:
+                break
 
 if __name__ == '__main__':
     main()
