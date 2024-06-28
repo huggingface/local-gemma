@@ -49,7 +49,7 @@ parser.add_argument(
 parser.add_argument(
     "--preset",
     type=str,
-    choices=["exact", "speed", "memory"],
+    choices=["exact", "speed", "memory", "memory_extreme"],
     default="exact",
     help=(
         "Sets the optimization strategy for the local model deployment. 'exact' maximises accuracy, 'speed' maximises "
