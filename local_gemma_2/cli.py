@@ -223,6 +223,10 @@ def main():
                         "past_key_values": cache,
                     }
                 )
+                # TODO(joao): this if shouldn't be needed, fix in transformers
+                if cache is not None:
+                    generation_kwargs["cache_implementation"] = None
+
                 if args.max_new_tokens is not None:
                     generation_kwargs["max_new_tokens"] = args.max_new_tokens
                 else:
