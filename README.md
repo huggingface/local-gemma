@@ -2,6 +2,10 @@
   <img src="https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/local-gemma-2/local_gemma_2.png?raw=true" width="600"/>
 </p>
 
+<h3 align="center">
+    <p>Run Gemma-2 locally in Python, fast!</p>
+</h3>
+
 This repository provides a lightweight wrapper around the [🤗 Transformers](https://github.com/huggingface/transformers)
 library for easily running Gemma-2 on a local machine.
 
@@ -48,7 +52,7 @@ You can chat with the Gemma-2 through an interactive session by calling:
 local-gemma-2
 ```
 
-Alternatively, you can request an output by passing the prompt, such as
+Alternatively, you can request an output by passing the prompt, such as:
 
 ```sh
 local-gemma-2 What is the capital of France?
