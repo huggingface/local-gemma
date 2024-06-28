@@ -11,14 +11,16 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-
+import psutil
 import torch
 
 from typing import Dict, Optional
 
-from transformers.utils import is_flash_attn_2_available
+from transformers import AutoConfig, Gemma2ForCausalLM
+from transformers.utils import is_flash_attn_2_available, is_torch_sdpa_available
+from accelerate.utils import calculate_maximum_sizes
 
+DTYPE_MODIFIER = {"exact": 2, "speed": 2, "memory": 8, "memory_extreme": 16}
 
 def infer_device(device: Optional[str] = None) -> str:
     """
@@ -50,7 +52,10 @@ def infer_dtype(dtype: Optional[str] = None) -> torch.dtype:
 def infer_attention_type(device: str) -> str:
     if device == "cuda" and is_flash_attn_2_available():
         return "flash_attention_2"
-    return "sdpa"
+    elif is_torch_sdpa_available():
+        return "sdpa"
+    else:
+        return "eager"
 
 
 def get_prompt(mode: str) -> str:
@@ -80,3 +85,27 @@ def get_generation_kwargs(mode: str) -> Dict:
     else:
         raise ValueError(f"Unknown mode: {mode}")
     return generation_kwargs
+
+def infer_memory_requirements(model_name, device=None, token=None, trust_remote_code=False) -> str:
+    config = AutoConfig.from_pretrained(model_name, token=token, trust_remote_code=trust_remote_code)
+    model = Gemma2ForCausalLM(config)
+
+    total_size, _ = calculate_maximum_sizes(model)
+    device = infer_device(device)
+
+    if device == "cuda":
+        total_memory = torch.cuda.get_device_properties(device).total_memory
+    else:
+        total_memory = psutil.virtual_memory().available
+
+    for preset in DTYPE_MODIFIER.keys():
+        dtype_total_size = total_size / DTYPE_MODIFIER[preset]
+        inference_requirements = 1.2 * dtype_total_size
+
+        if inference_requirements < total_memory:
+            # favour speed over exact
+            if preset == "exact" and is_torch_sdpa_available():
+                continue
+            return preset
+
+    return preset
