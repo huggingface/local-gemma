@@ -172,8 +172,7 @@ class LocalGemma2ForCausalLM(Gemma2ForCausalLM):
             **kwargs,
         )
 
-        # TODO(SG): decide on automatic device placement
-        if preset not in ["memory", "memory_extreme"]:
-            model = model.to(device)
+        if model.device != device:
+            model.to(device, dtype=preset_kwargs["torch_dtype"])
 
         return model
