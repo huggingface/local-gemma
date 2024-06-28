@@ -30,7 +30,7 @@ def benchmark(model, tokenizer):
     max_prompt_length = max(PROMPT_LENGTH)
     model_inputs = tokenizer(
         ["foo bar " * 4000], return_tensors="pt", truncation=True, max_length=max_prompt_length
-    ).to(model.device)
+    )
 
     # sanity check
     if model_inputs.input_ids.shape[1] != max_prompt_length:
@@ -46,7 +46,7 @@ def benchmark(model, tokenizer):
             print(f"\nBenchmarking with prompt_length={prompt_length} and max_new_tokens={max_new_tokens}.")
             run_name = f"prompt_length={prompt_length}, max_new_tokens={max_new_tokens}"
 
-            input_ids = model_inputs.input_ids[:, :prompt_length]
+            input_ids = model_inputs.input_ids[:, :prompt_length].to(model.device)
             for _ in tqdm(range(WARMUP_RUNS), desc="Warming up"):
                 model.generate(
                     input_ids, do_sample=False, max_new_tokens=max_new_tokens, min_new_tokens=max_new_tokens

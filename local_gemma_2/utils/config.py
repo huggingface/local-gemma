@@ -20,7 +20,7 @@ from typing import Dict, Optional
 from transformers.utils import is_flash_attn_2_available
 
 
-def infer_device(device: Optional[str]) -> str:
+def infer_device(device: Optional[str] = None) -> str:
     """
     Infers basic devices available on the system. Prioritizes the most performant device.
     """
@@ -34,7 +34,8 @@ def infer_device(device: Optional[str]) -> str:
     return "cpu"
 
 
-def infer_dtype(dtype: Optional[str]) -> torch.dtype:
+# TODO(SG): ensure compatible dtypes with device
+def infer_dtype(dtype: Optional[str] = None) -> torch.dtype:
     if dtype is None:
         return torch.float16
     # TODO: enable more dtypes
