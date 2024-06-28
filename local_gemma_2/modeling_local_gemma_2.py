@@ -25,14 +25,17 @@ logger = logging.getLogger(__name__)
 
 EXACT = {
     "attn_implementation": "eager",
+    "low_cpu_mem_usage": True,
 }
 
 SPEED = {
     "attn_implementation": "sdpa",
+    "low_cpu_mem_usage": True,
 }
 
 MEMORY = {
     "attn_implementation": "sdpa",
+    "low_cpu_mem_usage": True,
     "quantization_config": {
         "weights": "int4"
     }
@@ -40,6 +43,7 @@ MEMORY = {
 
 MEMORY_EXTREME = {
     "attn_implementation": "sdpa",
+    "low_cpu_mem_usage": True,
     "quantization_config": {
         "weights": "int2"
     }
@@ -55,17 +59,18 @@ PRESET_MAPPING = {
 
 class LocalGemma2ForCausalLM(Gemma2ForCausalLM):
     @staticmethod
-    # TODO(SG): potentially bypass these checks by pinning requirements
     def get_preset_kwargs(preset: str, device: str) -> Dict:
         preset_kwargs = PRESET_MAPPING.get(preset)
         if preset_kwargs is None:
             raise ValueError(f"Got invalid `preset` {preset}. Ensure `preset` is one of: {list(PRESET_MAPPING.keys())}")
+
         if preset == "speed" and not is_torch_sdpa_available():
             raise ImportError(
                 "The 'speed' preset requires PyTorch v2.1.1 or later. Please install torch>=2.1.1 through the "
                 "official instructions: https://pytorch.org/"
             )
-        if preset in ["memory", "memory_extreme"]:
+
+        elif preset in ["memory", "memory_extreme"]:
             if not is_torch_sdpa_available():
                 logger.warning(
                     "Detected PyTorch version <2.1.1. For faster inference through SDPA attention, install PyTorch "
@@ -82,6 +87,7 @@ class LocalGemma2ForCausalLM(Gemma2ForCausalLM):
                     f"The {preset} preset on {device} requires the `quanto` package. Please install quanto through: "
                     "`pip install --upgrade quanto`."
                 )
+
         if preset == "memory_extreme":
             if not is_accelerate_available():
                 raise ImportError(
@@ -95,6 +101,7 @@ class LocalGemma2ForCausalLM(Gemma2ForCausalLM):
                 )
             if device == "cuda":
                 preset_kwargs["device_map"] = "auto"
+
         return preset_kwargs
 
     @classmethod
@@ -131,10 +138,12 @@ class LocalGemma2ForCausalLM(Gemma2ForCausalLM):
             else:
                 preset_kwargs["quantization_config"] = QuantoConfig(weights=preset_kwargs["quantization_config"]["weights"])
 
+        # give preference to kwargs passed by the user
+        kwargs_copy = kwargs.copy()
         if kwargs is not None:
-            for key in kwargs:
+            for key in kwargs_copy:
                 if key in preset_kwargs:
-                    preset_kwargs[key] = kwargs[key]
+                    preset_kwargs[key] = kwargs.pop(key)
 
         model = super().from_pretrained(
             pretrained_model_name_or_path,
@@ -152,9 +161,7 @@ class LocalGemma2ForCausalLM(Gemma2ForCausalLM):
         )
 
         # TODO(SG): decide on automatic device placement
-        model = model.to(device)
-
-        if preset == "memory_extreme":
-            model.generation_config.cache_implementation = "quantized"
+        if preset not in ["memory", "memory_extreme"]:
+            model = model.to(device)
 
         return model

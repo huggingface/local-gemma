@@ -21,6 +21,8 @@ DEPS = [
     "transformers",
 ]
 
+EXTRA_CUDA_DEPS = ["bitsandbytes"]
+EXTRA_MPS_DEPS = ["quanto"]
 
 setuptools.setup(
     name='local_gemma_2',
@@ -31,4 +33,9 @@ setuptools.setup(
         'console_scripts': ['local-gemma-2=local_gemma_2.cli:main']
         },
     install_requires=DEPS,
+    extras_require={
+        "cuda": [EXTRA_CUDA_DEPS],
+        "mps": [EXTRA_MPS_DEPS],
+        "cpu": [EXTRA_MPS_DEPS],
+    },
 )
