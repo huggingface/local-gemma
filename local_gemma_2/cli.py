@@ -13,11 +13,11 @@
 # limitations under the License.
 
 import argparse
-import sys
 
-from transformers import AutoModelForCausalLM, AutoTokenizer, DynamicCache, TextStreamer, set_seed
+from transformers import AutoTokenizer, DynamicCache, TextStreamer, set_seed
 from transformers.utils import logging
 
+from local_gemma_2 import LocalGemma2ForCausalLM
 from .utils.benchmark import benchmark
 from .utils.config import infer_device, infer_dtype, infer_attention_type, get_prompt, get_generation_kwargs
 
@@ -47,14 +47,14 @@ parser.add_argument(
     help="Authentication token for the model. Required to download the model into a local cache.",
 )
 parser.add_argument(
-    "--optimization",
+    "--preset",
     type=str,
-    choices=["quality", "speed", "memory"],
-    default="quality",
+    choices=["exact", "speed", "memory"],
+    default="exact",
     help=(
-        "Sets the optimization strategy for the local model deployment. 'quality' loads the model without "
-        "quantization and applies `torch.compile`. 'speed' optimizes throughput, using a quantized model. 'memory' "
-        "applies further memory optimizations, like the quantized cache. Defaults to 'quality'."
+        "Sets the optimization strategy for the local model deployment. 'exact' maximises accuracy, 'speed' maximises "
+        "generation speed (throughput), 'memory' reduces memory requirements through quantization, and 'memory-extreme' "
+        "further minimises memory requirements as much as possible."
     ),
 )
 parser.add_argument(
@@ -154,13 +154,9 @@ def main():
         print("")
 
     tokenizer = AutoTokenizer.from_pretrained(model_name)
-    model = AutoModelForCausalLM.from_pretrained(
-        model_name, torch_dtype=dtype, attn_implementation=attention_type, token=args.auth_token
-    ).to(device)
+    model = LocalGemma2ForCausalLM.from_pretrained(model_name, preset=args.preset, token=args.auth_token, torch_dtype=dtype)
     if assistant_model_name is not None:
-        assistant_model = AutoModelForCausalLM.from_pretrained(
-            assistant_model_name, torch_dtype=dtype, attn_implementation=attention_type, token=args.auth_token
-        ).to(device)
+        assistant_model = LocalGemma2ForCausalLM.from_pretrained(assistant_model_name, preset=args.preset, token=args.auth_token, torch_dtype=dtype)
     else:
         assistant_model = None
 
