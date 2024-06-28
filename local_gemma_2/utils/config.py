@@ -16,7 +16,8 @@ import torch
 
 from typing import Dict, Optional
 
-from transformers import AutoConfig, Gemma2ForCausalLM
+from accelerate.commands.estimate import create_empty_model, verify_on_hub
+from transformers import Gemma2ForCausalLM
 from transformers.utils import is_flash_attn_2_available, is_torch_sdpa_available
 from accelerate.utils import calculate_maximum_sizes
 
@@ -87,8 +88,11 @@ def get_generation_kwargs(mode: str) -> Dict:
     return generation_kwargs
 
 def infer_memory_requirements(model_name, device=None, token=None, trust_remote_code=False) -> str:
-    config = AutoConfig.from_pretrained(model_name, token=token, trust_remote_code=trust_remote_code)
-    model = Gemma2ForCausalLM(config)
+    model_info = verify_on_hub(model_name, token=token)
+    if model_info == "repo":
+        model = Gemma2ForCausalLM.from_pretrained(model_name, low_cpu_mem_usage=True)
+    else:
+        model = create_empty_model(model_name, library_name="transformers", trust_remote_code=trust_remote_code, access_token=token)
 
     total_size, _ = calculate_maximum_sizes(model)
     device = infer_device(device)
