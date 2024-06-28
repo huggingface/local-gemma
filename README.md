@@ -29,17 +29,37 @@ pipx install ."[cpu]"
 
 > TODO: move to pip package. Has to be a local installation for now, since it is a private repo
 
+<!---
 ```
 pip install local-gemma-2
 ```
+--->
+
+### Docker Installation
+
+> TODO(SG): add installation
 
 ## CLI Usage
+
+You can chat with the model through an interactive session by calling
 
 ```
 local-gemma-2
 ```
 
-Call `local-gemma-2 -h` for available options.
+Alternativelly, you can request an output by passing the prompt, such as
+
+```
+local-gemma-2 What is the capital of France?
+```
+
+Depending on your device and setup, a few optimizations will be automatically enabled (e.g. Flash Attention). You can select different types of optimization through the `--optimization` flag, e.g. `memory` for GPU memory constrained situations. You can also control the style of the generated text through the `--mode` flag, e.g. `factual` to minimize halluciations. Here's an example:
+
+```
+local-gemma-2 --optimization memory --mode creative
+```
+
+Call `local-gemma-2 -h` for all available options.
 
 ## Python Usage
 
