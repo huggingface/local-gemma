@@ -15,17 +15,17 @@
 import argparse
 import sys
 
-from transformers import AutoModelForCausalLM, AutoTokenizer, DynamicCache, TextStreamer, set_seed
+from transformers import AutoModelForCausalLM, AutoTokenizer, TextStreamer, set_seed
 from transformers.utils import logging
 
 from .utils.benchmark import benchmark
 from .utils.config import infer_device, infer_dtype, infer_attention_type, get_prompt, get_generation_kwargs
 
 
-FULL_MODEL_NAME = "google/gemma-1.1-7b-it"
-ASSISTANT_MODEL_NAME = "google/gemma-1.1-2b-it"
-QUANTIZED_MODEL_NAME = None
-QUANTIZED_ASSISTANT_MODEL_NAME = None
+MODEL_NAMES = {
+    "9b": "google/gemma-2-9b-it",
+    "27b": "google/gemma-2-27b-it",
+}
 
 
 parser = argparse.ArgumentParser(description="Local Gemma 2")
@@ -40,7 +40,16 @@ parser.add_argument(
         "'--silent'"
     ),
 )
-# Arguments that control text generation (sorted by importance)
+# Other control arguments
+parser.add_argument(
+    "--model",
+    type=str,
+    default="9b",
+    help=(
+        "Size of Gemma 2 model to be used in the application ('9b' or '27'b) or, alternatively, a Hugging Face repo. "
+        "Defaults to '9b'."
+    ),
+)
 parser.add_argument(
     "--auth-token",
     type=str,
@@ -88,11 +97,7 @@ parser.add_argument(
     default="float16",
     help="The dtype in which computations are performed. Defaults to float16."
 )
-parser.add_argument(
-    "--model-name",
-    type=str,
-    help=f"Manually selects the model repo to be used in the application.",
-)
+
 parser.add_argument(
     "--silent",
     action="store_true",
@@ -130,22 +135,23 @@ def main():
     attention_type = infer_attention_type(device)
     generation_kwargs = get_generation_kwargs(args.mode)
     base_prompt = get_prompt(args.mode)
-    model_name = args.model_name or FULL_MODEL_NAME if args.optimization == "quality" else QUANTIZED_MODEL_NAME
+    model_name =  MODEL_NAMES.get(args.model) or args.model
 
-    # Triggers assisted generation on CUDA or MPS devices, assuming the default model is used. Assisted generation is
-    # not beneficial on most CPU settings.
-    if  args.model_name is None and ("cuda" in device or device.isdigit() or "mps" in device):
-        assistant_model_name = (
-            ASSISTANT_MODEL_NAME if args.optimization == "quality" else QUANTIZED_ASSISTANT_MODEL_NAME
-        )
-    else:
-        assistant_model_name = None
+    # TODO(joao) : assisted generation
+    # # Triggers assisted generation on CUDA or MPS devices, assuming the default model is used. Assisted generation is
+    # # not beneficial on most CPU settings.
+    # if  args.model_name is None and ("cuda" in device or device.isdigit() or "mps" in device):
+    #     assistant_model_name = (
+    #         ASSISTANT_MODEL_NAME if args.optimization == "quality" else QUANTIZED_ASSISTANT_MODEL_NAME
+    #     )
+    # else:
+    #     assistant_model_name = None
 
     if not args.silent:
-        logging.disable_progress_bar()  # TODO: this is not working, should suppress "Loading checkpoint shards"
+        logging.disable_progress_bar()  # TODO(joao): this is not working, should suppress "Loading checkpoint shards"
         print("\nLoading model with the following characteristics:")
         print("- Model name:", model_name)
-        print("- Assistant model name:", assistant_model_name)
+        # print("- Assistant model name:", assistant_model_name)
         print("- Device:", device)
         print("- Data type:", str(dtype))
         print("- Attention type:", attention_type)
@@ -157,12 +163,12 @@ def main():
     model = AutoModelForCausalLM.from_pretrained(
         model_name, torch_dtype=dtype, attn_implementation=attention_type, token=args.auth_token
     ).to(device)
-    if assistant_model_name is not None:
-        assistant_model = AutoModelForCausalLM.from_pretrained(
-            assistant_model_name, torch_dtype=dtype, attn_implementation=attention_type, token=args.auth_token
-        ).to(device)
-    else:
-        assistant_model = None
+    # if assistant_model_name is not None:
+    #     assistant_model = AutoModelForCausalLM.from_pretrained(
+    #         assistant_model_name, torch_dtype=dtype, attn_implementation=attention_type, token=args.auth_token
+    #     ).to(device)
+    # else:
+    assistant_model = None
 
     if args.benchmark:
         benchmark(model, tokenizer)
@@ -173,14 +179,14 @@ def main():
         if not args.silent:
             print_help()
 
-        starting_prompt = args.prompt
+        has_starting_prompt = len(args.prompt) > 0
         streamer = TextStreamer(tokenizer, skip_prompt=True, **{"skip_special_tokens": True})
-        cache = DynamicCache()
+        cache = None
         chat_history = []
         while True:
             # Get input to the model
-            if starting_prompt is not None:
-                user_input = " ".join(starting_prompt)
+            if has_starting_prompt:
+                user_input = " ".join(args.prompt)
             else:
                 # Try/except to allow piping on bash, like `echo "1+1=" | local-gemma-2`
                 try:
@@ -196,7 +202,7 @@ def main():
                 if hasattr(cache, "reset"):
                     cache.reset()
                 else:
-                    cache = DynamicCache()
+                    cache = None
             elif user_input == "!help":
                 print_help()
 
@@ -232,19 +238,15 @@ def main():
                 model_output_text = tokenizer.decode(model_tokens, skip_special_tokens=True)
                 chat_history += [{"role": "assistant", "content": model_output_text},]
 
-                # Remove the last EOS from the cache, as it is not needed for the next generation round.
-                new_cache_length = gen_out.sequences.shape[1] - 1
-                cache.crop(max_length=new_cache_length )
-
-                # Sanity check: the model output tokens -1 (EOS removed) must match the new tokenization -2
-                # (EOT + /n removed)
+                # Sanity check: EOS was removed, ends in "<end_of_turn>\n"
                 tokenized_chat = tokenizer.apply_chat_template(
                     chat_history, tokenize=True, add_generation_prompt=False, return_tensors="pt"
-                )
-                assert tokenized_chat.shape[1] - 2 == gen_out.sequences.shape[1] - 1
-                assert cache.get_seq_length() == gen_out.sequences.shape[1] - 1
+                ).tolist()[0]
+                assert tokenized_chat[0] == 2
+                assert tokenized_chat[-1] == 108
+                assert tokenized_chat[-2] == 107
 
-            if starting_prompt is not None:
+            if has_starting_prompt:
                 break
 
 if __name__ == '__main__':

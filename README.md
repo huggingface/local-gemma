@@ -6,7 +6,7 @@ Gemma 2 optimized for your local machine
 
 ## Installation
 
-Local Gemma-2 provides `pipx` packages specific to your hardware. `pipx` creates an isolated Python environment for the 
+Local Gemma-2 provides `pipx` packages specific to your hardware. `pipx` creates an isolated Python environment for the
 package. See the simple [installation instructions](https://github.com/pypa/pipx?tab=readme-ov-file#install-pipx) if you need to install it.
 
 ### CUDA
@@ -41,7 +41,7 @@ pip install local-gemma-2
 
 ## CLI Usage
 
-You can chat with the model through an interactive session by calling
+You can chat with the **9B Gemma 2** model through an interactive session by calling
 
 ```
 local-gemma-2
@@ -51,6 +51,12 @@ Alternativelly, you can request an output by passing the prompt, such as
 
 ```
 local-gemma-2 What is the capital of France?
+```
+
+If you have a beefy machive, you can specify the **27 Gemma 2** model as
+
+```
+local-gemma-2 --model 27b
 ```
 
 Depending on your device and setup, a few optimizations will be automatically enabled (e.g. Flash Attention). You can select different types of optimization through the `--optimization` flag, e.g. `memory` for GPU memory constrained situations. You can also control the style of the generated text through the `--mode` flag, e.g. `factual` to minimize halluciations. Here's an example:
@@ -64,7 +70,7 @@ Call `local-gemma-2 -h` for all available options.
 ## Python Usage
 
 Local Gemma-2 can be run locally through a Python interpreter using the familiar Transformers API. Local Gemma-2
-provides four presets that trade-off accuracy, speed and memory. The following table highlights this trade-off 
+provides four presets that trade-off accuracy, speed and memory. The following table highlights this trade-off
 using [Gemma-2 9b](https://huggingface.co/google/gemma-2-9b) with batch size 1 on an 80GB A100 GPU:
 
 | Mode           | Performance (?) | Inference Speed (tok/s) | Memory (GB) |
@@ -74,8 +80,8 @@ using [Gemma-2 9b](https://huggingface.co/google/gemma-2-9b) with batch size 1 o
 | memory         | c               | 13.8                    | 7.3         |
 | memory_extreme | d               | 7.0                     | **4.9**     |
 
-To enable a preset, import the model class from the `local_gemma_2` package and pass the `preset` argument when 
-loading the model `from_pretrained`. For example, the following code-snippet enables the "speed" preset for fastest 
+To enable a preset, import the model class from the `local_gemma_2` package and pass the `preset` argument when
+loading the model `from_pretrained`. For example, the following code-snippet enables the "speed" preset for fastest
 inference with the Gemma-2 base model:
 
 ```python
