@@ -21,7 +21,7 @@ from transformers import Gemma2ForCausalLM
 from transformers.utils import is_flash_attn_2_available, is_torch_sdpa_available
 from accelerate.utils import calculate_maximum_sizes
 
-DTYPE_MODIFIER = {"exact": 2, "speed": 2, "memory": 8, "memory_extreme": 16}
+DTYPE_MODIFIER = {"speed": 2, "exact": 2, "memory": 8, "memory_extreme": 16}
 
 def infer_device(device: Optional[str] = None) -> str:
     """
@@ -48,15 +48,6 @@ def infer_dtype(dtype: Optional[str] = None) -> torch.dtype:
         return torch.float16
     elif dtype == "bfloat16":
         return torch.bfloat16
-
-
-def infer_attention_type(device: str) -> str:
-    if device == "cuda" and is_flash_attn_2_available():
-        return "flash_attention_2"
-    elif is_torch_sdpa_available():
-        return "sdpa"
-    else:
-        return "eager"
 
 
 def get_prompt(mode: str) -> str:
@@ -86,6 +77,7 @@ def get_generation_kwargs(mode: str) -> Dict:
     else:
         raise ValueError(f"Unknown mode: {mode}")
     return generation_kwargs
+
 
 def infer_memory_requirements(model_name, device=None, token=None, trust_remote_code=False) -> str:
     model_info = verify_on_hub(model_name, token=token)

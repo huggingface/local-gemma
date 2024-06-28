@@ -19,7 +19,7 @@ from transformers.utils import logging
 
 from local_gemma_2 import LocalGemma2ForCausalLM
 from .utils.benchmark import benchmark
-from .utils.config import infer_device, infer_dtype, infer_attention_type, get_prompt, get_generation_kwargs
+from .utils.config import infer_device, infer_dtype, get_prompt, get_generation_kwargs
 
 
 MODEL_NAMES = {
@@ -97,7 +97,6 @@ parser.add_argument(
     default="float16",
     help="The dtype in which computations are performed. Defaults to float16."
 )
-
 parser.add_argument(
     "--silent",
     action="store_true",
@@ -132,7 +131,6 @@ def main():
 
     device = infer_device(args.device)
     dtype = infer_dtype(args.dtype)
-    attention_type = infer_attention_type(device)
     generation_kwargs = get_generation_kwargs(args.mode)
     base_prompt = get_prompt(args.mode)
     model_name =  MODEL_NAMES.get(args.model) or args.model
@@ -148,22 +146,26 @@ def main():
     #     assistant_model_name = None
 
     if not args.silent:
-        logging.disable_progress_bar()  # TODO(joao): this is not working, should suppress "Loading checkpoint shards"
         print("\nLoading model with the following characteristics:")
         print("- Model name:", model_name)
         # print("- Assistant model name:", assistant_model_name)
         print("- Device:", device)
         print("- Data type:", str(dtype))
-        print("- Attention type:", attention_type)
         print("- Generation arguments:", str(generation_kwargs))
         print("- Base prompt:", repr(base_prompt) if len(base_prompt) > 0 else "None")
         print("")
+    else:
+        logging.disable_progress_bar()
 
     tokenizer = AutoTokenizer.from_pretrained(model_name)
-    model = LocalGemma2ForCausalLM.from_pretrained(model_name, preset=args.preset, token=args.auth_token, torch_dtype=dtype)
+    model = LocalGemma2ForCausalLM.from_pretrained(
+        model_name, preset=args.preset, token=args.token, torch_dtype=dtype, device=device
+    )
+    model._supports_cache_class = True
+
     # if assistant_model_name is not None:
     #     assistant_model = LocalGemma2ForCausalLM.from_pretrained(
-    #         assistant_model_name, preset=args.preset, token=args.auth_token, torch_dtype=dtype)
+    #         assistant_model_name, preset=args.preset, token=args.token, torch_dtype=dtype, device=device)
     # else:
         # assistant_model = None
     assistant_model = None

@@ -126,7 +126,7 @@ class LocalGemma2ForCausalLM(Gemma2ForCausalLM):
         use_safetensors: bool = None,
         **kwargs,
     ) -> Gemma2ForCausalLM:
-        device = infer_device()
+        device = infer_device(kwargs.pop("device", None))
         preset_kwargs = cls.get_preset_kwargs(
             pretrained_model_name_or_path,
             preset,
