@@ -41,28 +41,31 @@ pip install local-gemma-2
 
 ## CLI Usage
 
-You can chat with the **9B Gemma 2** model through an interactive session by calling
+You can chat with the Gemma-2 through an interactive session by calling:
 
-```
+```sh
 local-gemma-2
 ```
 
-Alternativelly, you can request an output by passing the prompt, such as
+Alternatively, you can request an output by passing the prompt, such as
 
-```
+```sh
 local-gemma-2 What is the capital of France?
 ```
 
-If you have a beefy machive, you can specify the **27 Gemma 2** model as
+By default, this loads the [Gemma-2 9b](https://huggingface.co/google/gemma-2-9b) model. To load the [Gemma-2 27b](https://huggingface.co/google/gemma-2-27b)
+model, you can set the `--model` argument accordingly:
 
-```
+```sh
 local-gemma-2 --model 27b
 ```
 
-Depending on your device and setup, a few optimizations will be automatically enabled (e.g. Flash Attention). You can select different types of optimization through the `--optimization` flag, e.g. `memory` for GPU memory constrained situations. You can also control the style of the generated text through the `--mode` flag, e.g. `factual` to minimize halluciations. Here's an example:
+Local Gemma-2 will automatically find the most performant preset for your hardware, trading-off speed and memory. If you
+want to specify a preset, pass the `--preset` argument. You can also control the style of the generated text through the 
+`--mode` flag, e.g. `factual` to minimize hallucinations. Here's an example:
 
-```
-local-gemma-2 --optimization memory --mode creative
+```sh
+local-gemma-2 --model 9b --preset memory --mode creative
 ```
 
 Call `local-gemma-2 -h` for all available options.
