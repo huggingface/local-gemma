@@ -18,7 +18,7 @@ import logging
 from transformers import QuantoConfig, is_bitsandbytes_available, BitsAndBytesConfig
 from transformers.utils import is_quanto_available, is_torch_sdpa_available, is_accelerate_available
 from transformers.models.gemma2 import Gemma2ForCausalLM, Gemma2Config
-from .utils.config import infer_device, infer_dtype
+from .utils.config import infer_device, infer_dtype, infer_memory_requirements
 
 
 logger = logging.getLogger(__name__)
@@ -51,6 +51,7 @@ MEMORY_EXTREME = {
 
 
 PRESET_MAPPING = {
+    "auto": None,
     "exact": EXACT,
     "speed": SPEED,
     "memory": MEMORY,
@@ -59,10 +60,15 @@ PRESET_MAPPING = {
 
 class LocalGemma2ForCausalLM(Gemma2ForCausalLM):
     @staticmethod
-    def get_preset_kwargs(preset: str, device: str) -> Dict:
-        preset_kwargs = PRESET_MAPPING.get(preset)
-        if preset_kwargs is None:
+    def get_preset_kwargs(pretrained_model_name_or_path: str, preset: str, device: str, trust_remote_code: bool = False, token: str = None) -> Dict:
+        if preset not in PRESET_MAPPING:
             raise ValueError(f"Got invalid `preset` {preset}. Ensure `preset` is one of: {list(PRESET_MAPPING.keys())}")
+
+        if preset == "auto":
+            preset = infer_memory_requirements(pretrained_model_name_or_path, device, trust_remote_code=trust_remote_code, token=token)
+            logger.info(f"Detected device {device} and defaulting to {preset} preset.")
+
+        preset_kwargs = PRESET_MAPPING[preset]
 
         if preset == "speed" and not is_torch_sdpa_available():
             raise ImportError(
@@ -108,7 +114,7 @@ class LocalGemma2ForCausalLM(Gemma2ForCausalLM):
     def from_pretrained(
         cls,
         pretrained_model_name_or_path: Optional[Union[str, os.PathLike]],
-        preset: Optional[str] = "exact",
+        preset: Optional[str] = "auto",
         *model_args,
         config: Optional[Union[Gemma2Config, str, os.PathLike]] = None,
         cache_dir: Optional[Union[str, os.PathLike]] = None,
@@ -121,7 +127,13 @@ class LocalGemma2ForCausalLM(Gemma2ForCausalLM):
         **kwargs,
     ) -> Gemma2ForCausalLM:
         device = infer_device()
-        preset_kwargs = cls.get_preset_kwargs(preset, device)
+        preset_kwargs = cls.get_preset_kwargs(
+            pretrained_model_name_or_path,
+            preset,
+            device=device,
+            trust_remote_code=kwargs.get("trust_remote_code"),
+            token=kwargs.get("token"),
+        )
 
         torch_dtype = kwargs.pop("torch_dtype", None)
         preset_kwargs["torch_dtype"] = infer_dtype(torch_dtype)
