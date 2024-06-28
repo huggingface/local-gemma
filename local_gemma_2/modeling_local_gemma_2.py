@@ -135,8 +135,8 @@ class LocalGemma2ForCausalLM(Gemma2ForCausalLM):
             token=kwargs.get("token"),
         )
 
-        torch_dtype = kwargs.pop("torch_dtype", None)
-        preset_kwargs["torch_dtype"] = infer_dtype(torch_dtype)
+        torch_dtype = infer_dtype()
+        preset_kwargs["torch_dtype"] = kwargs.pop("torch_dtype", torch_dtype)
 
         quantization_config = kwargs.pop("quantization_config", None)
         if quantization_config is not None:
