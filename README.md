@@ -7,7 +7,7 @@
 </h3>
 
 This repository provides a lightweight wrapper around the [🤗 Transformers](https://github.com/huggingface/transformers)
-library for easily running Gemma-2 on a local machine.
+library for easily running [Gemma-2](https://huggingface.co/blog/gemma2) on a local machine.
 
 ## Installation
 
@@ -82,8 +82,8 @@ To see all available decoding options, call `local-gemma-2 -h`.
 
 ## Python Usage
 
-Local Gemma-2 can be run locally through a Python interpreter using the familiar Transformers API. To enable a preset, 
-import the model class from `local_gemma_2` and pass the `preset` argument to `from_pretrained`. For example, the 
+Local Gemma-2 can be run locally through a Python interpreter using the familiar Transformers API. To enable a preset,
+import the model class from `local_gemma_2` and pass the `preset` argument to `from_pretrained`. For example, the
 following code-snippet loads the [Gemma-2 9b](https://huggingface.co/google/gemma-2-9b) model with the "memory" preset:
 
 ```python
@@ -99,7 +99,7 @@ generated_ids = model.generate(**model_inputs.to(model.device))
 decoded_text = tokenizer.batch_decode(generated_ids)
 ```
 
-When using an instruction-tuned model (prefixed by `-it`) for conversational use, prepare the inputs using a 
+When using an instruction-tuned model (prefixed by `-it`) for conversational use, prepare the inputs using a
 chat-template. The following examples loads [Gemma-2 27b it](https://huggingface.co/google/gemma-2-27b-it) model
 using the "auto" preset, which automatically determines the best preset for the device:
 
@@ -125,7 +125,7 @@ decoded_text = tokenizer.batch_decode(generated_ids)
 
 ## Presets
 
-Local Gemma-2 provides four presets that trade-off accuracy, speed and memory. The following results highlight this 
+Local Gemma-2 provides four presets that trade-off accuracy, speed and memory. The following results highlight this
 trade-off using [Gemma-2 9b](https://huggingface.co/google/gemma-2-9b) with batch size 1 on an 80GB A100 GPU:
 
 | Mode           | Performance (?) | Inference Speed (tok/s) | Memory (GB) |
@@ -150,6 +150,8 @@ trade-off using [Gemma-2 9b](https://huggingface.co/google/gemma-2-9b) with batc
 | Mode           | Attn Implementation | Weights Dtype | CPU Offload |
 |----------------|---------------------|---------------|-------------|
 | exact          | eager               | fp16          | no          |
-| speed          | sdpa                | fp16          | no          |
-| memory         | sdpa                | int4          | no          |
-| memory_extreme | sdpa                | int2          | yes         |
+| speed          | eager               | fp16          | no          |
+| memory         | eager               | int4          | no          |
+| memory_extreme | eager               | int2          | yes         |
+
+Note: Due to [Gemma 2 logit softcapping](https://huggingface.co/blog/gemma2#soft-capping-and-attention-implementations), SDPA/FA doesn't work well.
