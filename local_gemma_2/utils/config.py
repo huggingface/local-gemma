@@ -11,6 +11,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import os
+import sys
 import psutil
 import torch
 
@@ -18,10 +20,13 @@ from typing import Dict, Optional
 
 from accelerate.commands.estimate import create_empty_model, verify_on_hub
 from transformers import Gemma2ForCausalLM
-from transformers.utils import is_flash_attn_2_available, is_torch_sdpa_available
+from transformers.utils import is_torch_sdpa_available, is_torch_bf16_available_on_device
 from accelerate.utils import calculate_maximum_sizes
 
-DTYPE_MODIFIER = {"speed": 2, "exact": 2, "memory": 8, "memory_extreme": 16}
+
+DTYPE_MODIFIER = {"exact": 2, "speed": 2, "memory": 8, "memory_extreme": 16}
+DTYPE_MAP = {"float32": torch.float32, "float16": torch.float16, "bfloat16": torch.bfloat16}
+
 
 def infer_device(device: Optional[str] = None) -> str:
     """
@@ -38,16 +43,17 @@ def infer_device(device: Optional[str] = None) -> str:
 
 
 # TODO(SG): ensure compatible dtypes with device
-def infer_dtype(dtype: Optional[str] = None) -> torch.dtype:
-    if dtype is None:
-        return torch.float16
+def infer_dtype(device: str, dtype_str: Optional[str] = None) -> torch.dtype:
+    if dtype_str is None:
+        if is_torch_bf16_available_on_device(device):
+            return torch.bfloat16
+        else:
+            return torch.float16
     # TODO: enable more dtypes
-    elif dtype == "float32":
-        return torch.float32
-    elif dtype == "float16":
-        return torch.float16
-    elif dtype == "bfloat16":
-        return torch.bfloat16
+    dtype = DTYPE_MAP.get(dtype_str, None)
+    if dtype is None:
+        raise ValueError(f"Unknown dtype: {dtype_str}. Must be one of {DTYPE_MAP.keys()}")
+    return dtype
 
 
 def get_prompt(mode: str) -> str:
@@ -84,7 +90,12 @@ def infer_memory_requirements(model_name, device=None, token=None, trust_remote_
     if model_info == "repo":
         model = Gemma2ForCausalLM.from_pretrained(model_name, low_cpu_mem_usage=True)
     else:
-        model = create_empty_model(model_name, library_name="transformers", trust_remote_code=trust_remote_code, access_token=token)
+        # `sys`-related code to suppress `print` calls in `create_empty_model`
+        sys.stdout = open(os.devnull, 'w')
+        model = create_empty_model(
+            model_name, library_name="transformers", trust_remote_code=trust_remote_code, access_token=token
+        )
+        sys.stdout = sys.__stdout__
 
     total_size, _ = calculate_maximum_sizes(model)
     device = infer_device(device)
