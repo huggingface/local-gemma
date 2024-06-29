@@ -22,7 +22,7 @@ DEPS = [
 ]
 
 EXTRA_CUDA_DEPS = ["bitsandbytes"]
-EXTRA_MPS_DEPS = ["quanto"]
+EXTRA_MPS_DEPS = ["quanto>=0.2.0"]
 
 setuptools.setup(
     name='local_gemma_2',

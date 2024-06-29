@@ -171,7 +171,7 @@ class LocalGemma2ForCausalLM(Gemma2ForCausalLM):
             **kwargs,
         )
 
-        if model.device != device:
+        if device not in str(model.device):
             model.to(device, dtype=preset_kwargs["torch_dtype"])
 
         return model

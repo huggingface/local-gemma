@@ -19,7 +19,7 @@ from transformers.utils import logging
 
 from local_gemma_2 import LocalGemma2ForCausalLM
 from .utils.benchmark import benchmark
-from .utils.config import infer_device, infer_dtype, get_prompt, get_generation_kwargs
+from .utils.config import infer_device, infer_dtype, get_prompt, get_generation_kwargs, infer_memory_requirements
 
 
 MODEL_NAMES = {
@@ -132,6 +132,9 @@ def main():
     generation_kwargs = get_generation_kwargs(args.mode)
     base_prompt = get_prompt(args.mode)
     model_name =  MODEL_NAMES.get(args.model) or args.model
+
+    if args.preset == "auto":
+        args.preset = infer_memory_requirements(model_name, device, trust_remote_code=False, token=args.token)
 
     # TODO(joao) : assisted generation
     # # Triggers assisted generation on CUDA or MPS devices, assuming the default model is used. Assisted generation is
