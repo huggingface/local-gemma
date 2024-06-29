@@ -20,11 +20,11 @@ from typing import Dict, Optional
 
 from accelerate.commands.estimate import create_empty_model, verify_on_hub
 from transformers import Gemma2ForCausalLM
-from transformers.utils import is_torch_sdpa_available, is_torch_bf16_available_on_device
+from transformers.utils import is_torch_bf16_available_on_device
 from accelerate.utils import calculate_maximum_sizes
 
 
-DTYPE_MODIFIER = {"exact": 2, "speed": 2, "memory": 8, "memory_extreme": 16}
+DTYPE_MODIFIER = {"exact": 2, "speed": 2, "memory": 8, "memory_extreme": 8}
 DTYPE_MAP = {"float32": torch.float32, "float16": torch.float16, "bfloat16": torch.bfloat16}
 
 
@@ -34,7 +34,6 @@ def infer_device(device: Optional[str] = None) -> str:
     """
     if device is not None:
         return device
-    # TODO: infer more dtypes
     elif torch.cuda.is_available():
         return "cuda"
     elif torch.backends.mps.is_available():
@@ -42,14 +41,12 @@ def infer_device(device: Optional[str] = None) -> str:
     return "cpu"
 
 
-# TODO(SG): ensure compatible dtypes with device
 def infer_dtype(device: str, dtype_str: Optional[str] = None) -> torch.dtype:
     if dtype_str is None:
         if is_torch_bf16_available_on_device(device):
             return torch.bfloat16
         else:
             return torch.float16
-    # TODO: enable more dtypes
     dtype = DTYPE_MAP.get(dtype_str, None)
     if dtype is None:
         raise ValueError(f"Unknown dtype: {dtype_str}. Must be one of {DTYPE_MAP.keys()}")
@@ -110,9 +107,8 @@ def infer_memory_requirements(model_name, device=None, token=None, trust_remote_
         inference_requirements = 1.2 * dtype_total_size
 
         if inference_requirements < total_memory:
-            # favour speed over exact
-            if preset == "exact" and is_torch_sdpa_available():
-                continue
             return preset
 
-    return preset
+    # if the model does not fit fully in the device, return the last preset ('memory-extreme') which will automatically
+    # enable CPU offloading so that we can fit any device
+    return "memory_extreme"
