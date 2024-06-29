@@ -66,7 +66,6 @@ class LocalGemma2ForCausalLM(Gemma2ForCausalLM):
 
         if preset == "auto":
             preset = infer_memory_requirements(pretrained_model_name_or_path, device, trust_remote_code=trust_remote_code, token=token)
-            breakpoint()
             logger.info(f"Detected device {device} and defaulting to {preset} preset.")
 
         preset_kwargs = PRESET_MAPPING[preset]
