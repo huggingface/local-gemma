@@ -29,7 +29,7 @@ EXACT = {
 }
 
 SPEED = {
-    "attn_implementation": "eager",
+    "attn_implementation": "sdpa",
     "low_cpu_mem_usage": True,
 }
 
@@ -45,8 +45,9 @@ MEMORY_EXTREME = {
     "attn_implementation": "eager",
     "low_cpu_mem_usage": True,
     "quantization_config": {
-        "weights": "int2"
+        "weights": "int4"
     }
+    # also triggers "device_map='auto'", i.e. cpu offloading
 }
 
 
@@ -137,17 +138,26 @@ class LocalGemma2ForCausalLM(Gemma2ForCausalLM):
 
         preset_kwargs["torch_dtype"] = kwargs.pop("torch_dtype", infer_dtype(device))
 
+        if '27b' in pretrained_model_name_or_path.lower() and "sdpa" == preset_kwargs["attn_implementation"]:
+            logger.warning(
+                "⚠️ 27b gemma 2 is sensible to the `sdpa` attention implementation, which is triggered by the "
+                f"current `preset` (preset={preset}). If you see poor quality generations, consider selecting another "
+                "preset ⚠️"
+            )
+
         quantization_config = kwargs.pop("quantization_config", None)
         if quantization_config is not None:
             preset_kwargs["quantization_config"] = quantization_config
         elif preset_kwargs.get("quantization_config"):
-            if device == "cuda" and preset == "memory":
+            if device == "cuda" and "4" in preset_kwargs["quantization_config"]["weights"]:
                 preset_kwargs["quantization_config"] = BitsAndBytesConfig(
                     load_in_4bit=True,
                     bnb_4bit_compute_dtype=preset_kwargs["torch_dtype"],
                 )
             else:
-                preset_kwargs["quantization_config"] = QuantoConfig(weights=preset_kwargs["quantization_config"]["weights"])
+                preset_kwargs["quantization_config"] = QuantoConfig(
+                    weights=preset_kwargs["quantization_config"]["weights"]
+                )
 
         # give preference to kwargs passed by the user
         kwargs_copy = kwargs.copy()
