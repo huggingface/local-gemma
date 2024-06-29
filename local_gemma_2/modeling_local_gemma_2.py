@@ -29,12 +29,12 @@ EXACT = {
 }
 
 SPEED = {
-    "attn_implementation": "sdpa",
+    "attn_implementation": "eager",
     "low_cpu_mem_usage": True,
 }
 
 MEMORY = {
-    "attn_implementation": "sdpa",
+    "attn_implementation": "eager",
     "low_cpu_mem_usage": True,
     "quantization_config": {
         "weights": "int4"
@@ -42,7 +42,7 @@ MEMORY = {
 }
 
 MEMORY_EXTREME = {
-    "attn_implementation": "sdpa",
+    "attn_implementation": "eager",
     "low_cpu_mem_usage": True,
     "quantization_config": {
         "weights": "int2"
@@ -66,6 +66,7 @@ class LocalGemma2ForCausalLM(Gemma2ForCausalLM):
 
         if preset == "auto":
             preset = infer_memory_requirements(pretrained_model_name_or_path, device, trust_remote_code=trust_remote_code, token=token)
+            breakpoint()
             logger.info(f"Detected device {device} and defaulting to {preset} preset.")
 
         preset_kwargs = PRESET_MAPPING[preset]
@@ -135,8 +136,7 @@ class LocalGemma2ForCausalLM(Gemma2ForCausalLM):
             token=kwargs.get("token"),
         )
 
-        torch_dtype = infer_dtype()
-        preset_kwargs["torch_dtype"] = kwargs.pop("torch_dtype", torch_dtype)
+        preset_kwargs["torch_dtype"] = kwargs.pop("torch_dtype", infer_dtype(device))
 
         quantization_config = kwargs.pop("quantization_config", None)
         if quantization_config is not None:

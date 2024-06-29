@@ -18,7 +18,7 @@ import setuptools
 DEPS = [
     "torch>=2.1.1",
     "accelerate",
-    "transformers>=4.42.2",
+    "transformers>=4.42.3",
 ]
 
 EXTRA_CUDA_DEPS = ["bitsandbytes"]

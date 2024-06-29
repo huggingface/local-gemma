@@ -93,9 +93,7 @@ parser.add_argument(
 parser.add_argument(
     "--dtype",
     type=str,
-    choices=["float32", "float16", "bfloat16"],
-    default="float16",
-    help="The dtype in which computations are performed. Defaults to float16."
+    help="The dtype in which computations are performed. Defaults to the dtype set by --preset",
 )
 parser.add_argument(
     "--silent",
@@ -130,7 +128,7 @@ def main():
         args.silent = True
 
     device = infer_device(args.device)
-    dtype = infer_dtype(args.dtype)
+    dtype = infer_dtype(device, args.dtype)
     generation_kwargs = get_generation_kwargs(args.mode)
     base_prompt = get_prompt(args.mode)
     model_name =  MODEL_NAMES.get(args.model) or args.model
