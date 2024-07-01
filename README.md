@@ -18,38 +18,30 @@ There are three installation flavors of `local-gemma` installation, depending on
 <details>
   <summary><b><font size="+0.5"><code>pipx</code> - Minimal local executable</font></b></summary>
 
-  Local Gemma-2 can be installed as a hardware-specific Python package through `pip`. The only requirement is a Python
-installation, details for which can be found [here](https://wiki.python.org/moin/BeginnersGuide/Download). You can
-check you have a Python installed locally by running:
+  First, follow the installation steps [here](https://github.com/pypa/pipx?tab=readme-ov-file#install-pipx) to install `pipx` on your environment.
 
-```sh
-python3 --version
-```
+  Then, run one of the commands below, depending on your machine.
 
-#### (optional) Create a new Python environment
+  #### CUDA
 
-```sh
-python3 -m venv gemma-venv
-source gemma-venv/bin/activate
-```
+  ```sh
+  pipx install local-gemma"[cuda]"
+  ```
 
-#### CUDA
+  #### MPS
 
-```sh
-pip install local-gemma"[cuda]"
-```
+  ```sh
+  pipx install local-gemma"[mps]"
+  ```
 
-#### MPS
+  #### CPU
 
-```sh
-pip install local-gemma"[mps]"
-```
+  ```sh
+  pipx install local-gemma"[cpu]"
+  ```
 
-#### CPU
-
-```sh
-pip install local-gemma"[cpu]"
-```
+  > [!NOTE]
+  > `pipx` installation creates its own Python environment, so you won't be able to use this library in a Python script with this installation method.
 
 </details>
 
@@ -106,6 +98,9 @@ You can chat with the Gemma-2 through an interactive session by calling:
 ```sh
 local-gemma
 ```
+
+> [!TIP]
+> The first time you run the application, it will request a read token to download the model. You can follow [this guide](https://huggingface.co/docs/hub/en/security-tokens) to create a token, and pass it through the `--token` argument. If you're new to Hugging Face and never used a Gemma model, you'll also need to accept the terms at the top of [this page](https://huggingface.co/google/gemma-2-9b-it).
 
 Alternatively, you can request a single output by passing a prompt, such as:
 
