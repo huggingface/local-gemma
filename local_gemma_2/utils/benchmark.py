@@ -16,9 +16,9 @@ from time import time
 from tqdm import tqdm
 
 
-PROMPT_LENGTH = [64, 512, 2048]
-MAX_NEW_TOKENS = [64, 512, 2048]
-NUM_RUNS = 10
+PROMPT_LENGTH = [64, 2048]
+MAX_NEW_TOKENS = [64, 2048]
+NUM_RUNS = 5
 WARMUP_RUNS = 3
 
 
