@@ -166,7 +166,7 @@ def main():
     else:
         logging.disable_progress_bar()
 
-    tokenizer = AutoTokenizer.from_pretrained(model_name)
+    tokenizer = AutoTokenizer.from_pretrained(model_name, token=args.token)
     model = LocalGemma2ForCausalLM.from_pretrained(
         model_name, preset=args.preset, token=args.token, torch_dtype=dtype, device=device
     )
