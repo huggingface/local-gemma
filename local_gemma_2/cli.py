@@ -130,7 +130,7 @@ def print_help(is_instruction_tuned: bool = True):
 def main():
     args = parser.parse_args()
 
-    stdout_received, _, _ = select.select([sys.stdin], [], [], 0)
+    stdout_received = not sys.stdin.isatty()
     if stdout_received:
         input_data = sys.stdin.read()
         args.prompt = args.prompt + ["\n"] + [input_data]
