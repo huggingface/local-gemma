@@ -13,7 +13,12 @@ to just the largest layer in the model!
 
 ## Installation
 
-Local Gemma-2 can be installed as a hardware-specific Python package through `pip`. The only requirement is a Python
+There are three installation flavors of `local-gemma` installation, depending on your intended use case:
+
+<details>
+  <summary><b><font size="+0.5"><code>pipx</code> - Minimal local executable</font></b></summary>
+
+  Local Gemma-2 can be installed as a hardware-specific Python package through `pip`. The only requirement is a Python
 installation, details for which can be found [here](https://wiki.python.org/moin/BeginnersGuide/Download). You can
 check you have a Python installed locally by running:
 
@@ -46,9 +51,53 @@ pip install local-gemma"[mps]"
 pip install local-gemma"[cpu]"
 ```
 
-### Docker Installation
+</details>
 
-> TODO(SG): add installation
+<details>
+  <summary><b><font size="+0.5"><code>pip</code> - Python package</font></b></summary>
+
+  Local Gemma-2 can be installed as a hardware-specific Python package through `pip`. The only requirement is a Python
+installation, details for which can be found [here](https://wiki.python.org/moin/BeginnersGuide/Download). You can
+check you have a Python installed locally by running:
+
+```sh
+python3 --version
+```
+
+#### (optional) Create a new Python environment
+
+```sh
+python3 -m venv gemma-venv
+source gemma-venv/bin/activate
+```
+
+#### CUDA
+
+```sh
+pip install local-gemma"[cuda]"
+```
+
+#### MPS
+
+```sh
+pip install local-gemma"[mps]"
+```
+
+#### CPU
+
+```sh
+pip install local-gemma"[cpu]"
+```
+
+</details>
+
+<details>
+  <summary><b><font size="+0.5"><code>Docker</code> - Pre-prepared container</font></b></summary>
+
+  > TODO(SG): add installation
+
+</details>
+
 
 ## CLI Usage
 
@@ -143,15 +192,15 @@ trade-off using [Gemma-2 9b](https://huggingface.co/google/gemma-2-9b) with batc
 |----------------|-----------------|-------------------------|-------------|
 | exact          | **a**           | 17.2                    | 18.3        |
 | memory         | c               | 13.8                    | 7.3         |
-| memory_extreme | d               | 7.0                     | **4.9**     |
+| memory_extreme | d               | 13.8                    | 7.3         |
 
 ### Preset Details
 
 | Mode           | Attn Implementation | Weights Dtype | CPU Offload |
 |----------------|---------------------|---------------|-------------|
-| exact          | eager               | fp16          | no          |
+| exact          | eager               | bf16          | no          |
 | memory         | eager               | int4          | no          |
-| memory_extreme | eager               | int2          | yes         |
+| memory_extreme | eager               | int4          | yes         |
 
 `memory_extreme` implements [CPU offloading](https://huggingface.co/docs/accelerate/en/usage_guides/big_modeling) through
 [🤗 Accelerate](https://huggingface.co/docs/accelerate/en/index), reducing memory requirements down to the largest layer in the model (which in this case is the LM head).
