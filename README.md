@@ -6,10 +6,9 @@
     <p>Run Gemma-2 locally in Python, fast!</p>
 </h3>
 
-This repository provides a lightweight wrapper around the [🤗 Transformers](https://github.com/huggingface/transformers)
-library for easily running [Gemma-2](https://huggingface.co/blog/gemma2) on a local machine.
+This repository provides an easy way to run [Gemma-2](https://huggingface.co/blog/gemma2) locally directly from your CLI (or via a Python library) and fast. It is built on top of the [🤗 Transformers](https://github.com/huggingface/transformers) library.
 
-It can be configured to given fully equivalent results to the original implementation, or reduce memory requirements down
+It can be configured to give fully equivalent results to the original implementation, or reduce memory requirements down
 to just the largest layer in the model!
 
 ## Installation
