@@ -27,7 +27,7 @@ EXTRA_MPS_DEPS = ["quanto>=0.2.0"]
 
 setuptools.setup(
     name='local_gemma',
-    version='0.1.0',
+    version='0.2.0.dev0',
     author="The Hugging Face team",
     packages=setuptools.find_packages(),
     entry_points={
