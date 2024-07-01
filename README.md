@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://huggingface.co/datasets/huggingface/documentation-images/blob/main/local-gemma-2/local_gemma.png?raw=true" width="600"/>
+  <img src="https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/local-gemma-2/local_gemma.png?raw=true" width="600"/>
 </p>
 
 <h3 align="center">
