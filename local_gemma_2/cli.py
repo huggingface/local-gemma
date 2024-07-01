@@ -124,10 +124,10 @@ def print_help():
 
 def main():
     args = parser.parse_args()
-    stdin = sys.stdin.read()
 
     # stdin is appended to the prompt after a '\n' separator
-    if len(stdin) > 0:
+    if not sys.stdin.isatty():
+        stdin = sys.stdin.read()
         args.prompt = args.prompt + ["\n"] + [stdin]
     if args.prompt:
         args.silent = True
