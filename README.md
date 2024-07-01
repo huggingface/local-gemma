@@ -184,17 +184,17 @@ decoded_text = tokenizer.batch_decode(generated_ids)
 Local Gemma-2 provides three presets that trade-off accuracy, speed and memory. The following results highlight this
 trade-off using [Gemma-2 9b](https://huggingface.co/google/gemma-2-9b) with batch size 1 on an 80GB A100 GPU:
 
-| Mode           | Performance[^1] | Inference Speed (tok/s) | Memory (GB) |
-|----------------|-----------------|-------------------------|-------------|
-| exact          | **73.0**        | **17.2**                | 18.3        |
-| memory         | 72.1            | 13.8                    | **7.3**     |
-| memory_extreme | 72.1            | 13.8                    | **7.3**     |
+| Mode           | Performance* | Inference Speed (tok/s) | Memory (GB) |
+|----------------|--------------|-------------------------|-------------|
+| exact          | **73.0**     | **17.2**                | 18.3        |
+| memory         | 72.1         | 13.8                    | **7.3**     |
+| memory_extreme | 72.1         | 13.8                    | **7.3**     |
 
 While an 80GB A100 places the full model on the device, only 3.7GB is required with the `memory_extreme` preset. See the
 section [Preset Details](#preset-details) for details.
 
 ___
-[^1] Zero-shot results averaged over Wino, ARC Easy, Arc Challenge, PIQA, HellaSwag, MMLU, OpenBook QA.
+*Zero-shot results averaged over Wino, ARC Easy, Arc Challenge, PIQA, HellaSwag, MMLU, OpenBook QA.
 
 ### Preset Details
 
