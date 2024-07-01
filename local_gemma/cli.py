@@ -189,6 +189,10 @@ def main():
         has_starting_prompt = len(args.prompt) > 0
         is_instruction_tuned = tokenizer.chat_template is not None
 
+        if device == "mps" and args.preset == "auto" and args.max_new_tokens is None:
+            print("Setting max new tokens to 1024 for faster mps generation. To bypass this limit, set `--max_new_tokens=2048`.")
+            args.max_new_tokens = 1024
+
         if not args.silent and not has_starting_prompt:
             print_help(is_instruction_tuned=is_instruction_tuned)
 
@@ -203,7 +207,7 @@ def main():
                 user_input = input(">>> ")
 
             # Handle special commands
-            if user_input == "!exit":
+            if user_input in ["!exit", "quit", "quit()"]:
                 break
             elif user_input == "!new session":
                 chat_history = []
@@ -243,6 +247,12 @@ def main():
 
                 if args.max_new_tokens is not None:
                     generation_kwargs["max_new_tokens"] = args.max_new_tokens
+                    input_ids_len = tokenized_chat.shape[-1]
+                    max_cache_len = args.max_new_tokens + input_ids_len
+                    if cache is not None and cache.max_cache_len < max_cache_len:
+                        # reset the cache
+                        generation_kwargs.pop("past_key_values")
+                        generation_kwargs["cache_implementation"] = "hybrid"
                 else:
                     generation_kwargs["max_length"] = model.config.max_position_embeddings
 
