@@ -16,6 +16,7 @@ import setuptools
 
 
 DEPS = [
+    "setuptools",
     "torch>=2.1.1",
     "accelerate",
     "transformers>=4.42.3",

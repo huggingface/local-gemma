@@ -130,6 +130,7 @@ def main():
     args = parser.parse_args()
 
     stdout_received = not sys.stdin.isatty()
+    if stdout_received:
         input_data = sys.stdin.read()
         args.prompt = args.prompt + ["\n"] + [input_data]
 
