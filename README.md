@@ -58,6 +58,12 @@ Alternatively, you can request an output by passing the prompt, such as:
 local-gemma-2 What is the capital of France?
 ```
 
+You can also pipe in other commands, which will be appended to the prompt after a `\n` separator
+
+```sh
+ls -la | local-gemma-2 decribe my files
+```
+
 By default, this loads the [Gemma-2 9b](https://huggingface.co/google/gemma-2-9b) model. To load the [Gemma-2 27b](https://huggingface.co/google/gemma-2-27b)
 model, you can set the `--model` argument accordingly:
 
@@ -150,7 +156,7 @@ trade-off using [Gemma-2 9b](https://huggingface.co/google/gemma-2-9b) with batc
 | Mode           | Attn Implementation | Weights Dtype | CPU Offload |
 |----------------|---------------------|---------------|-------------|
 | exact          | eager               | fp16          | no          |
-| speed          | eager               | fp16          | no          |
+| speed          | sdpa                | fp16          | no          |
 | memory         | eager               | int4          | no          |
 | memory_extreme | eager               | int2          | yes         |
 

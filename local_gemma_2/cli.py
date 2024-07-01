@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import argparse
+import sys
 
 from transformers import AutoTokenizer, TextStreamer, set_seed
 from transformers.utils import logging
@@ -27,7 +28,6 @@ MODEL_NAMES = {
     "27b": "google/gemma-2-27b-it",
 }
 
-
 parser = argparse.ArgumentParser(description="Local Gemma 2")
 
 # Prompt argument
@@ -36,8 +36,8 @@ parser.add_argument(
     type=str,
     nargs="*",
     help=(
-        "Prompt to the model. For an interactive session, leave this field empty. Using this field will activate "
-        "'--silent'"
+        "Prompt to the model. For an interactive session, leave this field empty. The stdin is appended to the prompt "
+        "after a '\n' separator Using this field will activate '--silent'"
     ),
 )
 # Other control arguments
@@ -124,6 +124,11 @@ def print_help():
 
 def main():
     args = parser.parse_args()
+    stdin = sys.stdin.read()
+
+    # stdin is appended to the prompt after a '\n' separator
+    if len(stdin) > 0:
+        args.prompt = args.prompt + ["\n"] + [stdin]
     if args.prompt:
         args.silent = True
 
@@ -152,6 +157,7 @@ def main():
         # print("- Assistant model name:", assistant_model_name)
         print("- Device:", device)
         print("- Data type:", str(dtype))
+        print("- Optimization preset:", args.preset)
         print("- Generation arguments:", str(generation_kwargs))
         print("- Base prompt:", repr(base_prompt) if len(base_prompt) > 0 else "None")
         print("")
@@ -162,6 +168,7 @@ def main():
     model = LocalGemma2ForCausalLM.from_pretrained(
         model_name, preset=args.preset, token=args.token, torch_dtype=dtype, device=device
     )
+    # TODO(joao): this if shouldn't be needed, fix in transformers
     model._supports_cache_class = True
 
     # if assistant_model_name is not None:
@@ -189,11 +196,7 @@ def main():
             if has_starting_prompt:
                 user_input = " ".join(args.prompt)
             else:
-                # Try/except to allow piping on bash, like `echo "1+1=" | local-gemma-2`
-                try:
-                    user_input = input(">>> ")
-                except EOFError:
-                    break
+                user_input = input(">>> ")
 
             # Handle special commands
             if user_input == "!exit":

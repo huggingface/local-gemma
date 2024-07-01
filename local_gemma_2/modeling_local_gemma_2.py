@@ -145,6 +145,13 @@ class LocalGemma2ForCausalLM(Gemma2ForCausalLM):
                 )
         preset_kwargs["torch_dtype"] = torch_dtype
 
+        if '27b' in pretrained_model_name_or_path.lower() and "sdpa" == preset_kwargs["attn_implementation"]:
+            logger.warning(
+                "⚠️ 27b gemma 2 is sensible to the `sdpa` attention implementation, which is triggered by the "
+                f"current `preset` (preset={preset}). If you see poor quality generations, consider selecting another "
+                "preset ⚠️"
+            )
+
         quantization_config = kwargs.pop("quantization_config", None)
         if quantization_config is not None:
             preset_kwargs["quantization_config"] = quantization_config
@@ -155,7 +162,9 @@ class LocalGemma2ForCausalLM(Gemma2ForCausalLM):
                     bnb_4bit_compute_dtype=preset_kwargs["torch_dtype"],
                 )
             else:
-                preset_kwargs["quantization_config"] = QuantoConfig(weights=preset_kwargs["quantization_config"]["weights"])
+                preset_kwargs["quantization_config"] = QuantoConfig(
+                    weights=preset_kwargs["quantization_config"]["weights"]
+                )
 
         # give preference to kwargs passed by the user
         kwargs_copy = kwargs.copy()
