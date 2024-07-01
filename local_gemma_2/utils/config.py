@@ -24,7 +24,7 @@ from transformers.utils import is_torch_bf16_available_on_device
 from accelerate.utils import calculate_maximum_sizes
 
 
-DTYPE_MODIFIER = {"exact": 2, "speed": 2, "memory": 8, "memory_extreme": 8}
+DTYPE_MODIFIER = {"exact": 2, "memory": 8, "memory_extreme": 8}
 DTYPE_MAP = {"float32": torch.float32, "float16": torch.float16, "bfloat16": torch.bfloat16}
 
 

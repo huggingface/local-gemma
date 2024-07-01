@@ -74,7 +74,7 @@ local-gemma-2 --model 27b
 
 Local Gemma-2 will automatically find the most performant preset for your hardware, trading-off speed and memory. For more
 control over generation speed and memory usage, set the `--preset` argument to one of three available options:
-1. exact: matching the original results by maximizing accuracy
+1. exact: match the original results by maximizing accuracy
 2. memory: reducing memory through 4-bit quantization
 3. memory_extreme: minimizing memory through 4-bit quantization and CPU offload
 
@@ -146,15 +146,6 @@ trade-off using [Gemma-2 9b](https://huggingface.co/google/gemma-2-9b) with batc
 | memory         | c               | 13.8                    | 7.3         |
 | memory_extreme | d               | 7.0                     | **4.9**     |
 
-
-### Minimum Memory Requirements
-
-| Mode           | 9B   | 27B |
-|----------------|------|-----|
-| exact          | 18.3 |     |
-| memory         | 7.3  |     |
-| memory_extreme | 4.9  |     |
-
 ### Preset Details
 
 | Mode           | Attn Implementation | Weights Dtype | CPU Offload |
@@ -163,4 +154,25 @@ trade-off using [Gemma-2 9b](https://huggingface.co/google/gemma-2-9b) with batc
 | memory         | eager               | int4          | no          |
 | memory_extreme | eager               | int2          | yes         |
 
-Note: Due to [Gemma 2 logit softcapping](https://huggingface.co/blog/gemma2#soft-capping-and-attention-implementations), SDPA/FA doesn't work well.
+`memory_extreme` implements [CPU offloading](https://huggingface.co/docs/accelerate/en/usage_guides/big_modeling) through 
+[🤗 Accelerate](https://huggingface.co/docs/accelerate/en/index), reducing memory requirements down to the largest layer in the model (which in this case is the LM head).
+
+
+### Minimum Memory Requirements
+
+| Mode           | 9B   | 27B  |
+|----------------|------|------|
+| exact          | 18.3 | 68.2 |
+| memory         | 7.3  | 17.0 |
+| memory_extreme | 3.7  | 4.7  |
+
+Note: Due to [Gemma 2 logit soft-capping](https://huggingface.co/blog/gemma2#soft-capping-and-attention-implementations), SDPA/FA doesn't work well.
+
+## Acknowledgements
+Local Gemma-2 is a convenient wrapper around several open-source projects, which we thank explicitly below:
+* [Transformers](https://huggingface.co/docs/transformers/en/index) for the PyTorch Gemma-2 implementation. Particularly [Arthur Zucker](https://github.com/ArthurZucker) for adding the model and the logit soft-capping fixes.
+* [bitsandbytes](https://huggingface.co/docs/bitsandbytes/index) for the 4-bit optimization on CUDA.
+* [quanto](https://github.com/huggingface/optimum-quanto) for the 4-bit optimization on MPS + CPU.
+* [Accelerate](https://huggingface.co/docs/accelerate/en/index) for the large model loading utilities.
+
+And last but not least, thank you to Google for the pre-trained [Gemma-2 checkpoints](https://huggingface.co/collections/google/gemma-2-release-667d6600fd5220e7b967f315), all of which you can find on the Hugging Face Hub.
