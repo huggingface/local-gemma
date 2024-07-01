@@ -13,10 +13,10 @@ to just the largest layer in the model!
 
 ## Installation
 
-There are three installation flavors of `local-gemma` installation, depending on your intended use case:
+There are two installation flavors of `local-gemma`, which you can select depending on your use case:
 
 <details>
-  <summary><b><font size="+0.5"><code>pipx</code> - Minimal local executable</font></b></summary>
+  <summary><b><font size="+0.5"><code>pipx</code> - Ideal for CLI</font></b></summary>
 
   First, follow the installation steps [here](https://github.com/pypa/pipx?tab=readme-ov-file#install-pipx) to install `pipx` on your environment.
 
@@ -43,7 +43,7 @@ There are three installation flavors of `local-gemma` installation, depending on
 </details>
 
 <details>
-  <summary><b><font size="+0.5"><code>pip</code> - Python package</font></b></summary>
+  <summary><b><font size="+0.5"><code>pip</code> - Ideal for Python (CLI + API)</font></b></summary>
 
   Local Gemma-2 can be installed as a hardware-specific Python package through `pip`. The only requirement is a Python
 installation, details for which can be found [here](https://wiki.python.org/moin/BeginnersGuide/Download). You can
@@ -80,13 +80,14 @@ pip install local-gemma"[cpu]"
 
 </details>
 
+<!---
 <details>
   <summary><b><font size="+0.5"><code>Docker</code> - Pre-prepared container</font></b></summary>
 
   > TODO(SG): add installation
 
 </details>
-
+--->
 
 ## CLI Usage
 
@@ -135,7 +136,7 @@ To see all available decoding options, call `local-gemma -h`.
 ## Python Usage
 
   > [!NOTE]
-  > The `pipx` installation method creates its own Python environment, so you will need to use a different installation method to use this library in a Python script.
+  > The `pipx` installation method creates its own Python environment, so you will need to use the `pip` installation method to use this library in a Python script.
 
 Local Gemma-2 can be run locally through a Python interpreter using the familiar Transformers API. To enable a preset,
 import the model class from `local_gemma` and pass the `preset` argument to `from_pretrained`. For example, the
