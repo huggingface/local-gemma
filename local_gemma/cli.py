@@ -189,7 +189,7 @@ def main():
         has_starting_prompt = len(args.prompt) > 0
         is_instruction_tuned = tokenizer.chat_template is not None
 
-        if not args.silent and (not is_instruction_tuned and not has_starting_prompt):
+        if not args.silent and not has_starting_prompt:
             print_help(is_instruction_tuned=is_instruction_tuned)
 
         streamer = TextStreamer(tokenizer, skip_prompt=True, **{"skip_special_tokens": True})
