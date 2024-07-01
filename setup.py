@@ -26,12 +26,12 @@ EXTRA_CUDA_DEPS = ["bitsandbytes"]
 EXTRA_MPS_DEPS = ["quanto>=0.2.0"]
 
 setuptools.setup(
-    name='local_gemma_2',
+    name='local_gemma',
     version='0.0.1',
     author="The Hugging Face team",
     packages=setuptools.find_packages(),
     entry_points={
-        'console_scripts': ['local-gemma-2=local_gemma_2.cli:main']
+        'console_scripts': ['local-gemma=local_gemma.cli:main']
         },
     install_requires=DEPS,
     extras_require={

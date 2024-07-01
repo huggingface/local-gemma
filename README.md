@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/local-gemma-2/local_gemma_2.png?raw=true" width="600"/>
+  <img src="https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/local-gemma/local_gemma.png?raw=true" width="600"/>
 </p>
 
 <h3 align="center">
@@ -13,8 +13,8 @@ to just the largest layer in the model!
 
 ## Installation
 
-Local Gemma-2 can be installed as a hardware-specific Python package through `pip`. The only requirement is a Python 
-installation, details for which can be found [here](https://wiki.python.org/moin/BeginnersGuide/Download). You can 
+Local Gemma-2 can be installed as a hardware-specific Python package through `pip`. The only requirement is a Python
+installation, details for which can be found [here](https://wiki.python.org/moin/BeginnersGuide/Download). You can
 check you have a Python installed locally by running:
 
 ```sh
@@ -31,19 +31,19 @@ source gemma-venv/bin/activate
 #### CUDA
 
 ```sh
-pip install local-gemma-2"[cuda]"
+pip install local-gemma"[cuda]"
 ```
 
 #### MPS
 
 ```sh
-pip install local-gemma-2"[mps]"
+pip install local-gemma"[mps]"
 ```
 
 #### CPU
 
 ```sh
-pip install local-gemma-2"[cpu]"
+pip install local-gemma"[cpu]"
 ```
 
 ### Docker Installation
@@ -55,20 +55,20 @@ pip install local-gemma-2"[cpu]"
 You can chat with the Gemma-2 through an interactive session by calling:
 
 ```sh
-local-gemma-2
+local-gemma
 ```
 
 Alternatively, you can request a single output by passing a prompt, such as:
 
 ```sh
-local-gemma-2 "What is the capital of France?"
+local-gemma "What is the capital of France?"
 ```
 
 By default, this loads the [Gemma-2 9b it](https://huggingface.co/google/gemma-2-9b-it) model. To load the [Gemma-2 27b it](https://huggingface.co/google/gemma-2-27b-it)
 model, you can set the `--model` argument accordingly:
 
 ```sh
-local-gemma-2 --model 27b
+local-gemma --model 27b
 ```
 
 Local Gemma-2 will automatically find the most performant preset for your hardware, trading-off speed and memory. For more
@@ -80,25 +80,25 @@ control over generation speed and memory usage, set the `--preset` argument to o
 You can also control the style of the generated text through the `--mode` flag, one of "chat", "factual" or "creative":
 
 ```sh
-local-gemma-2 --model 9b --preset memory --mode factual
+local-gemma --model 9b --preset memory --mode factual
 ```
 
 Finally, you can also pipe in other commands, which will be appended to the prompt after a `\n` separator
 
 ```sh
-ls -la | local-gemma-2 "Describe my files"
+ls -la | local-gemma "Describe my files"
 ```
 
-To see all available decoding options, call `local-gemma-2 -h`.
+To see all available decoding options, call `local-gemma -h`.
 
 ## Python Usage
 
 Local Gemma-2 can be run locally through a Python interpreter using the familiar Transformers API. To enable a preset,
-import the model class from `local_gemma_2` and pass the `preset` argument to `from_pretrained`. For example, the
+import the model class from `local_gemma` and pass the `preset` argument to `from_pretrained`. For example, the
 following code-snippet loads the [Gemma-2 9b](https://huggingface.co/google/gemma-2-9b) model with the "memory" preset:
 
 ```python
-from local_gemma_2 import LocalGemma2ForCausalLM
+from local_gemma import LocalGemma2ForCausalLM
 from transformers import AutoTokenizer
 
 model = LocalGemma2ForCausalLM.from_pretrained("google/gemma-2-9b", preset="memory")
@@ -115,7 +115,7 @@ chat-template. The following example loads [Gemma-2 27b it](https://huggingface.
 using the "auto" preset, which automatically determines the best preset for the device:
 
 ```python
-from local_gemma_2 import LocalGemma2ForCausalLM
+from local_gemma import LocalGemma2ForCausalLM
 from transformers import AutoTokenizer
 
 model = LocalGemma2ForCausalLM.from_pretrained("google/gemma-2-27b-it", preset="auto")
@@ -153,7 +153,7 @@ trade-off using [Gemma-2 9b](https://huggingface.co/google/gemma-2-9b) with batc
 | memory         | eager               | int4          | no          |
 | memory_extreme | eager               | int2          | yes         |
 
-`memory_extreme` implements [CPU offloading](https://huggingface.co/docs/accelerate/en/usage_guides/big_modeling) through 
+`memory_extreme` implements [CPU offloading](https://huggingface.co/docs/accelerate/en/usage_guides/big_modeling) through
 [🤗 Accelerate](https://huggingface.co/docs/accelerate/en/index), reducing memory requirements down to the largest layer in the model (which in this case is the LM head).
 
 

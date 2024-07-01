@@ -19,7 +19,7 @@ import torch
 from transformers import AutoTokenizer, TextStreamer, set_seed
 from transformers.utils import logging
 
-from local_gemma_2 import LocalGemma2ForCausalLM
+from local_gemma import LocalGemma2ForCausalLM
 from .utils.benchmark import benchmark
 from .utils.config import infer_device, infer_dtype, get_prompt, get_generation_kwargs, infer_memory_requirements
 
@@ -29,7 +29,7 @@ MODEL_NAMES = {
     "27b": "google/gemma-2-27b-it",
 }
 
-parser = argparse.ArgumentParser(description="Local Gemma 2")
+parser = argparse.ArgumentParser(description="Local Gemma")
 
 # Prompt argument
 parser.add_argument(
@@ -46,8 +46,8 @@ parser.add_argument(
     type=str,
     default="9b",
     help=(
-        "Size of Gemma 2 model to be used in the application ('9b' or '27'b) or, alternatively, a Hugging Face repo. "
-        "Defaults to '9b'."
+        "Size of Gemma 2 instruct model to be used in the application ('9b' or '27'b) or, alternatively, a Hugging "
+        "Face repo. Defaults to '9b'."
     ),
 )
 parser.add_argument(
