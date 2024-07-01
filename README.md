@@ -135,7 +135,7 @@ To see all available decoding options, call `local-gemma -h`.
 ## Python Usage
 
   > [!NOTE]
-  > The `pipx` installation method creates its own Python environment, so you won't be able to use this library in a Python script.
+  > The `pipx` installation method creates its own Python environment, so you will need to use a different installation method to use this library in a Python script.
 
 Local Gemma-2 can be run locally through a Python interpreter using the familiar Transformers API. To enable a preset,
 import the model class from `local_gemma` and pass the `preset` argument to `from_pretrained`. For example, the
