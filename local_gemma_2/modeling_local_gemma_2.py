@@ -15,6 +15,7 @@ import os
 from typing import Optional, Union, Dict
 import logging
 
+import torch
 from transformers import QuantoConfig, is_bitsandbytes_available, BitsAndBytesConfig
 from transformers.utils import is_quanto_available, is_torch_sdpa_available, is_accelerate_available
 from transformers.models.gemma2 import Gemma2ForCausalLM, Gemma2Config
@@ -25,17 +26,14 @@ logger = logging.getLogger(__name__)
 
 EXACT = {
     "attn_implementation": "eager",
-    "low_cpu_mem_usage": True,
 }
 
 SPEED = {
     "attn_implementation": "sdpa",
-    "low_cpu_mem_usage": True,
 }
 
 MEMORY = {
     "attn_implementation": "eager",
-    "low_cpu_mem_usage": True,
     "quantization_config": {
         "weights": "int4"
     }
@@ -43,11 +41,10 @@ MEMORY = {
 
 MEMORY_EXTREME = {
     "attn_implementation": "eager",
-    "low_cpu_mem_usage": True,
+    "device_map": "auto",
     "quantization_config": {
         "weights": "int4"
     }
-    # also triggers "device_map='auto'", i.e. cpu offloading
 }
 
 
@@ -71,15 +68,22 @@ class LocalGemma2ForCausalLM(Gemma2ForCausalLM):
 
         preset_kwargs = PRESET_MAPPING[preset]
 
-        if preset == "speed" and not is_torch_sdpa_available():
-            raise ImportError(
-                "The 'speed' preset requires PyTorch v2.1.1 or later. Please install torch>=2.1.1 through the "
-                "official instructions: https://pytorch.org/"
+        if preset == "speed":
+            if not is_torch_sdpa_available():
+                raise ImportError(
+                    "The 'speed' preset requires PyTorch v2.1.1 or later. Please install torch>=2.1.1 through the "
+                    "official instructions: https://pytorch.org/"
+                )
+            logger.warning_once(
+                "Using the 'speed' preset results in fastest inference speed at the expense of a loss in accuracy."
+                "This is particularly pronounced for the largest checkpoints, e.g. at the 27b size. If you notice "
+                "generation performance degrade, consider swapping to the 'exact' preset, which uses the same memory "
+                "as 'speed', but with higher accuracy."
             )
 
         elif preset in ["memory", "memory_extreme"]:
             if not is_torch_sdpa_available():
-                logger.warning(
+                logger.warning_once(
                     "Detected PyTorch version <2.1.1. For faster inference through SDPA attention, install PyTorch "
                     "v2.1.1 or later through the official instructions: https://pytorch.org/"
                 )
@@ -101,13 +105,6 @@ class LocalGemma2ForCausalLM(Gemma2ForCausalLM):
                     f"The `memory_extreme` preset requires the `accelerate` package. Please install accelerate through: "
                     "`pip install --upgrade accelerate`."
                 )
-            if not is_quanto_available():
-                raise ImportError(
-                    f"The `memory_extreme` preset on {device} requires the `quanto` package. Please install quanto through: "
-                    "`pip install --upgrade quanto`."
-                )
-            if device == "cuda":
-                preset_kwargs["device_map"] = "auto"
 
         return preset_kwargs
 
@@ -136,7 +133,17 @@ class LocalGemma2ForCausalLM(Gemma2ForCausalLM):
             token=kwargs.get("token"),
         )
 
-        preset_kwargs["torch_dtype"] = kwargs.pop("torch_dtype", infer_dtype(device))
+        preset_kwargs["low_cpu_mem_usage"] = True
+        torch_dtype = kwargs.pop("torch_dtype", None)
+        if torch_dtype is None:
+            torch_dtype = infer_dtype(device)
+            if torch_dtype == torch.float16:
+                extra_message = ' and weights' if preset not in ['memory', 'memory_extreme'] else ''
+                logger.warning(
+                    f"Defaulting to float16 precision for the computations{extra_message}. "
+                    f"This can cause instabilities in generation for larger models, e.g. the 27b checkpoints."
+                )
+        preset_kwargs["torch_dtype"] = torch_dtype
 
         if '27b' in pretrained_model_name_or_path.lower() and "sdpa" == preset_kwargs["attn_implementation"]:
             logger.warning(
@@ -149,7 +156,7 @@ class LocalGemma2ForCausalLM(Gemma2ForCausalLM):
         if quantization_config is not None:
             preset_kwargs["quantization_config"] = quantization_config
         elif preset_kwargs.get("quantization_config"):
-            if device == "cuda" and "4" in preset_kwargs["quantization_config"]["weights"]:
+            if device == "cuda":
                 preset_kwargs["quantization_config"] = BitsAndBytesConfig(
                     load_in_4bit=True,
                     bnb_4bit_compute_dtype=preset_kwargs["torch_dtype"],
@@ -181,7 +188,8 @@ class LocalGemma2ForCausalLM(Gemma2ForCausalLM):
             **kwargs,
         )
 
-        if device not in str(model.device):
+        if device not in str(model.device) and preset_kwargs.get("device_map", None) is None:
+            # for consistent behaviour with bitsandbytes, we move the model to the device always
             model.to(device, dtype=preset_kwargs["torch_dtype"])
 
         return model
