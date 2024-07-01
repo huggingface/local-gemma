@@ -13,8 +13,10 @@
 # limitations under the License.
 
 import argparse
+import select
 import sys
 
+import torch
 from transformers import AutoTokenizer, TextStreamer, set_seed
 from transformers.utils import logging
 
@@ -36,8 +38,7 @@ parser.add_argument(
     type=str,
     nargs="*",
     help=(
-        "Prompt to the model. For an interactive session, leave this field empty. The stdin is appended to the prompt "
-        "after a '\n' separator Using this field will activate '--silent'"
+        "Prompt to the model. For an interactive session, leave this field empty."
     ),
 )
 # Other control arguments
@@ -78,7 +79,7 @@ parser.add_argument(
     ),
 )
 parser.add_argument(
-    "--max-new-tokens",
+    "--max_new_tokens",
     type=int,
     help=(
         "Maximum number of tokens to be used in each generation round. By default it relies on the model to emit an "
@@ -113,30 +114,32 @@ parser.add_argument(
 )
 
 
-def print_help():
-    print("\nYou can now interact with the model. A few tips:")
-    print("- Initialize the program with '--silent' to hide all non-model messages")
-    print("- Input '!exit' to leave the program")
-    print("- Input '!new session' to reset the conversation")
-    print("- Input '!help' to print this message again")
+def print_help(is_instruction_tuned: bool = True):
+    if is_instruction_tuned:
+        print("\nYou can now interact with the model through a conversation. A few tips:")
+        print("- Initialize the program with '--silent' to hide all non-model messages")
+        print("- Input '!exit' to leave the program")
+        print("- Input '!new session' to reset the conversation")
+        print("- Input '!help' to print this message again")
+    else:
+        print("\nYou can now pass a prompt to the base model to generate a single response.")
+        print("Tip: for multi-turn conversation, use an instruction tuned model, such as `google/gemma-2-9b-it`.")
     print("")
 
 
 def main():
     args = parser.parse_args()
-    stdin = sys.stdin.read()
 
-    # stdin is appended to the prompt after a '\n' separator
-    if len(stdin) > 0:
-        args.prompt = args.prompt + ["\n"] + [stdin]
-    if args.prompt:
-        args.silent = True
+    stdout_received, _, _ = select.select([sys.stdin], [], [], 0)
+    if stdout_received:
+        input_data = sys.stdin.read()
+        args.prompt = args.prompt + ["\n"] + [input_data]
 
     device = infer_device(args.device)
     dtype = infer_dtype(device, args.dtype)
     generation_kwargs = get_generation_kwargs(args.mode)
     base_prompt = get_prompt(args.mode)
-    model_name =  MODEL_NAMES.get(args.model) or args.model
+    model_name = MODEL_NAMES.get(args.model) or args.model
 
     if args.preset == "auto":
         args.preset = infer_memory_requirements(model_name, device, trust_remote_code=False, token=args.token)
@@ -184,10 +187,12 @@ def main():
         if args.seed is not None:
             set_seed(args.seed)
 
-        if not args.silent:
-            print_help()
-
         has_starting_prompt = len(args.prompt) > 0
+        is_instruction_tuned = tokenizer.chat_template is not None
+
+        if not args.silent and (not is_instruction_tuned and not has_starting_prompt):
+            print_help(is_instruction_tuned=is_instruction_tuned)
+
         streamer = TextStreamer(tokenizer, skip_prompt=True, **{"skip_special_tokens": True})
         cache = None
         chat_history = []
@@ -217,9 +222,13 @@ def main():
                     user_input = base_prompt + user_input
 
                 chat_history += [{"role": "user", "content": user_input},]
-                tokenized_chat = tokenizer.apply_chat_template(
-                    chat_history, tokenize=True, add_generation_prompt=True, return_tensors="pt"
-                )
+                if is_instruction_tuned:
+                    tokenized_chat = tokenizer.apply_chat_template(
+                        chat_history, tokenize=True, add_generation_prompt=True, return_tensors="pt"
+                    )
+                else:
+                    tokenized_chat = tokenizer(user_input, return_tensors="pt").input_ids
+
                 tokenized_chat = tokenized_chat.to(device)
                 generation_kwargs.update(
                     {
@@ -238,6 +247,9 @@ def main():
                 else:
                     generation_kwargs["max_length"] = model.config.max_position_embeddings
 
+                if device == "mps":
+                    generation_kwargs["attention_mask"] = torch.ones_like(tokenized_chat)
+
                 gen_out = model.generate(input_ids=tokenized_chat, **generation_kwargs)
 
                 # Store the cache for the next generation round; Pull the model output into the chat history.
@@ -246,15 +258,16 @@ def main():
                 model_output_text = tokenizer.decode(model_tokens, skip_special_tokens=True)
                 chat_history += [{"role": "assistant", "content": model_output_text},]
 
-                # Sanity check: EOS was removed, ends in "<end_of_turn>\n"
-                tokenized_chat = tokenizer.apply_chat_template(
-                    chat_history, tokenize=True, add_generation_prompt=False, return_tensors="pt"
-                ).tolist()[0]
-                assert tokenized_chat[0] == 2
-                assert tokenized_chat[-1] == 108
-                assert tokenized_chat[-2] == 107
+                if is_instruction_tuned:
+                    # Sanity check: EOS was removed, ends in "<end_of_turn>\n"
+                    tokenized_chat = tokenizer.apply_chat_template(
+                        chat_history, tokenize=True, add_generation_prompt=False, return_tensors="pt"
+                    ).tolist()[0]
+                    assert tokenized_chat[0] == 2
+                    assert tokenized_chat[-1] == 108
+                    assert tokenized_chat[-2] == 107
 
-            if has_starting_prompt:
+            if has_starting_prompt or not is_instruction_tuned:
                 break
 
 if __name__ == '__main__':

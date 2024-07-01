@@ -9,36 +9,43 @@
 This repository provides a lightweight wrapper around the [🤗 Transformers](https://github.com/huggingface/transformers)
 library for easily running [Gemma-2](https://huggingface.co/blog/gemma2) on a local machine.
 
+It can be configured to given fully equivalent results to the original implementation, or reduce memory requirements down
+to just the largest layer in the model!
+
 ## Installation
 
-Local Gemma-2 provides `pipx` packages specific to your hardware. `pipx` creates an isolated Python environment for the
-package. See the simple [installation instructions](https://github.com/pypa/pipx?tab=readme-ov-file#install-pipx) if you need to install it.
-
-### CUDA
-
-```sh
-pipx install ."[cuda]"
-```
-
-### MPS
+Local Gemma-2 can be installed as a hardware-specific Python package through `pip`. The only requirement is a Python 
+installation, details for which can be found [here](https://wiki.python.org/moin/BeginnersGuide/Download). You can 
+check you have a Python installed locally by running:
 
 ```sh
-pipx install ."[mps]"
+python3 --version
 ```
 
-### CPU
+#### (optional) Create a new Python environment
 
 ```sh
-pipx install ."[cpu]"
+python3 -m venv gemma-venv
+source gemma-venv/bin/activate
 ```
 
-> TODO: move to pip package. Has to be a local installation for now, since it is a private repo
+#### CUDA
 
-<!---
+```sh
+pip install local-gemma-2"[cuda]"
 ```
-pip install local-gemma-2
+
+#### MPS
+
+```sh
+pip install local-gemma-2"[mps]"
 ```
---->
+
+#### CPU
+
+```sh
+pip install local-gemma-2"[cpu]"
+```
 
 ### Docker Installation
 
@@ -52,19 +59,13 @@ You can chat with the Gemma-2 through an interactive session by calling:
 local-gemma-2
 ```
 
-Alternatively, you can request an output by passing the prompt, such as:
+Alternatively, you can request a single output by passing a prompt, such as:
 
 ```sh
-local-gemma-2 What is the capital of France?
+local-gemma-2 "What is the capital of France?"
 ```
 
-You can also pipe in other commands, which will be appended to the prompt after a `\n` separator
-
-```sh
-ls -la | local-gemma-2 decribe my files
-```
-
-By default, this loads the [Gemma-2 9b](https://huggingface.co/google/gemma-2-9b) model. To load the [Gemma-2 27b](https://huggingface.co/google/gemma-2-27b)
+By default, this loads the [Gemma-2 9b it](https://huggingface.co/google/gemma-2-9b-it) model. To load the [Gemma-2 27b it](https://huggingface.co/google/gemma-2-27b-it)
 model, you can set the `--model` argument accordingly:
 
 ```sh
@@ -72,16 +73,21 @@ local-gemma-2 --model 27b
 ```
 
 Local Gemma-2 will automatically find the most performant preset for your hardware, trading-off speed and memory. For more
-control over generation speed and memory usage, set the `--preset` argument to one of four available options:
-1. exact: maximising accuracy
-2. speed: maximising inference speed
-3. memory: reducing memory
-4. memory_extreme: minimising memory
+control over generation speed and memory usage, set the `--preset` argument to one of three available options:
+1. exact: matching the original results by maximizing accuracy
+2. memory: reducing memory through 4-bit quantization
+3. memory_extreme: minimizing memory through 4-bit quantization and CPU offload
 
 You can also control the style of the generated text through the `--mode` flag, one of "chat", "factual" or "creative":
 
 ```sh
 local-gemma-2 --model 9b --preset memory --mode factual
+```
+
+Finally, you can also pipe in other commands, which will be appended to the prompt after a `\n` separator
+
+```sh
+ls -la | local-gemma-2 "Describe my files"
 ```
 
 To see all available decoding options, call `local-gemma-2 -h`.
@@ -106,7 +112,7 @@ decoded_text = tokenizer.batch_decode(generated_ids)
 ```
 
 When using an instruction-tuned model (prefixed by `-it`) for conversational use, prepare the inputs using a
-chat-template. The following examples loads [Gemma-2 27b it](https://huggingface.co/google/gemma-2-27b-it) model
+chat-template. The following example loads [Gemma-2 27b it](https://huggingface.co/google/gemma-2-27b-it) model
 using the "auto" preset, which automatically determines the best preset for the device:
 
 ```python
@@ -131,13 +137,12 @@ decoded_text = tokenizer.batch_decode(generated_ids)
 
 ## Presets
 
-Local Gemma-2 provides four presets that trade-off accuracy, speed and memory. The following results highlight this
+Local Gemma-2 provides three presets that trade-off accuracy, speed and memory. The following results highlight this
 trade-off using [Gemma-2 9b](https://huggingface.co/google/gemma-2-9b) with batch size 1 on an 80GB A100 GPU:
 
 | Mode           | Performance (?) | Inference Speed (tok/s) | Memory (GB) |
 |----------------|-----------------|-------------------------|-------------|
 | exact          | **a**           | 17.2                    | 18.3        |
-| speed          | b               | **18.3**                | 18.3        |
 | memory         | c               | 13.8                    | 7.3         |
 | memory_extreme | d               | 7.0                     | **4.9**     |
 
@@ -147,7 +152,6 @@ trade-off using [Gemma-2 9b](https://huggingface.co/google/gemma-2-9b) with batc
 | Mode           | 9B   | 27B |
 |----------------|------|-----|
 | exact          | 18.3 |     |
-| speed          | 18.3 |     |
 | memory         | 7.3  |     |
 | memory_extreme | 4.9  |     |
 
@@ -156,7 +160,6 @@ trade-off using [Gemma-2 9b](https://huggingface.co/google/gemma-2-9b) with batc
 | Mode           | Attn Implementation | Weights Dtype | CPU Offload |
 |----------------|---------------------|---------------|-------------|
 | exact          | eager               | fp16          | no          |
-| speed          | sdpa                | fp16          | no          |
 | memory         | eager               | int4          | no          |
 | memory_extreme | eager               | int2          | yes         |
 

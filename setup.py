@@ -34,8 +34,8 @@ setuptools.setup(
         },
     install_requires=DEPS,
     extras_require={
-        "cuda": [EXTRA_CUDA_DEPS],
-        "mps": [EXTRA_MPS_DEPS],
-        "cpu": [EXTRA_MPS_DEPS],
+        "cuda": EXTRA_CUDA_DEPS,
+        "mps": EXTRA_MPS_DEPS,
+        "cpu": EXTRA_MPS_DEPS,
     },
 )

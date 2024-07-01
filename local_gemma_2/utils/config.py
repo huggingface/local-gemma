@@ -18,8 +18,8 @@ import torch
 
 from typing import Dict, Optional
 
-from accelerate.commands.estimate import create_empty_model, verify_on_hub
-from transformers import Gemma2ForCausalLM
+from accelerate import init_empty_weights
+from transformers import Gemma2ForCausalLM, Gemma2Config
 from transformers.utils import is_torch_bf16_available_on_device
 from accelerate.utils import calculate_maximum_sizes
 
@@ -83,16 +83,10 @@ def get_generation_kwargs(mode: str) -> Dict:
 
 
 def infer_memory_requirements(model_name, device=None, token=None, trust_remote_code=False) -> str:
-    model_info = verify_on_hub(model_name, token=token)
-    if model_info == "repo":
-        model = Gemma2ForCausalLM.from_pretrained(model_name, low_cpu_mem_usage=True)
-    else:
-        # `sys`-related code to suppress `print` calls in `create_empty_model`
-        sys.stdout = open(os.devnull, 'w')
-        model = create_empty_model(
-            model_name, library_name="transformers", trust_remote_code=trust_remote_code, access_token=token
-        )
-        sys.stdout = sys.__stdout__
+    config = Gemma2Config.from_pretrained(model_name, token=token, trust_remote_code=trust_remote_code)
+
+    with init_empty_weights():
+        model = Gemma2ForCausalLM(config)
 
     total_size, _ = calculate_maximum_sizes(model)
     device = infer_device(device)
@@ -100,7 +94,7 @@ def infer_memory_requirements(model_name, device=None, token=None, trust_remote_
     if device == "cuda":
         total_memory = torch.cuda.get_device_properties(device).total_memory
     else:
-        total_memory = psutil.virtual_memory().available
+        total_memory = psutil.virtual_memory().total
 
     for preset in DTYPE_MODIFIER.keys():
         dtype_total_size = total_size / DTYPE_MODIFIER[preset]
@@ -109,6 +103,6 @@ def infer_memory_requirements(model_name, device=None, token=None, trust_remote_
         if inference_requirements < total_memory:
             return preset
 
-    # if the model does not fit fully in the device, return the last preset ('memory-extreme') which will automatically
+    # if the model does not fit fully in the device, return the last preset ('memory_extreme') which will automatically
     # enable CPU offloading so that we can fit any device
     return "memory_extreme"

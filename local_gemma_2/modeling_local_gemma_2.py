@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import os
+os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "1"
+
 from typing import Optional, Union, Dict
 import logging
 
@@ -26,10 +28,6 @@ logger = logging.getLogger(__name__)
 
 EXACT = {
     "attn_implementation": "eager",
-}
-
-SPEED = {
-    "attn_implementation": "sdpa",
 }
 
 MEMORY = {
@@ -51,7 +49,6 @@ MEMORY_EXTREME = {
 PRESET_MAPPING = {
     "auto": None,
     "exact": EXACT,
-    "speed": SPEED,
     "memory": MEMORY,
     "memory_extreme": MEMORY_EXTREME,
 }
@@ -68,20 +65,7 @@ class LocalGemma2ForCausalLM(Gemma2ForCausalLM):
 
         preset_kwargs = PRESET_MAPPING[preset]
 
-        if preset == "speed":
-            if not is_torch_sdpa_available():
-                raise ImportError(
-                    "The 'speed' preset requires PyTorch v2.1.1 or later. Please install torch>=2.1.1 through the "
-                    "official instructions: https://pytorch.org/"
-                )
-            logger.warning_once(
-                "Using the 'speed' preset results in fastest inference speed at the expense of a loss in accuracy."
-                "This is particularly pronounced for the largest checkpoints, e.g. at the 27b size. If you notice "
-                "generation performance degrade, consider swapping to the 'exact' preset, which uses the same memory "
-                "as 'speed', but with higher accuracy."
-            )
-
-        elif preset in ["memory", "memory_extreme"]:
+        if preset in ["memory", "memory_extreme"]:
             if not is_torch_sdpa_available():
                 logger.warning_once(
                     "Detected PyTorch version <2.1.1. For faster inference through SDPA attention, install PyTorch "
