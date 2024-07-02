@@ -98,7 +98,7 @@ local-gemma
 ```
 
 > [!TIP]
-> The first time you run the application, it will request a read token to download the model. You can follow [this guide](https://huggingface.co/docs/hub/en/security-tokens) to create a token, and pass it through the `--token` argument. If you're new to Hugging Face and never used a Gemma model, you'll also need to accept the terms at the top of [this page](https://huggingface.co/google/gemma-2-9b-it).
+> Local Gemma will check for a Hugging Face "read" token to download the model. You can follow [this guide](https://huggingface.co/docs/hub/en/security-tokens) to create a token, and pass it through the `--token` argument. If you're new to Hugging Face and never used a Gemma model, you'll also need to accept the terms at the top of [this page](https://huggingface.co/google/gemma-2-9b-it).
 
 Alternatively, you can request a single output by passing a prompt, such as:
 
