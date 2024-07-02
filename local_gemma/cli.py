@@ -19,6 +19,7 @@ import torch
 from transformers import AutoTokenizer, TextStreamer, set_seed
 from transformers.utils import logging
 
+from huggingface_hub import get_token, login
 from local_gemma import LocalGemma2ForCausalLM
 from .utils.benchmark import benchmark
 from .utils.config import infer_device, infer_dtype, get_prompt, get_generation_kwargs, infer_memory_requirements
@@ -139,6 +140,13 @@ def main():
     generation_kwargs = get_generation_kwargs(args.mode)
     base_prompt = get_prompt(args.mode)
     model_name = MODEL_NAMES.get(args.model) or args.model
+    if args.token is None:
+        if get_token() is None:
+            print("Using the gated Gemma model requires you to:")
+            print("1. Create an account on the Hugging Face Hub: https://huggingface.co/join")
+            print("2. Accept the Gemma-2 model terms of use: https://huggingface.co/google/gemma-2-9b")
+            print("3. Create an access token and paste it below: https://huggingface.co/settings/tokens")
+            login()
 
     if args.preset == "auto":
         args.preset = infer_memory_requirements(model_name, device, trust_remote_code=False, token=args.token)
