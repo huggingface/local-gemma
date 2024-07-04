@@ -98,7 +98,7 @@ def infer_memory_requirements(model_name, device=None, token=None, trust_remote_
 
     for preset in DTYPE_MODIFIER.keys():
         dtype_total_size = total_size / DTYPE_MODIFIER[preset]
-        inference_requirements = 1.2 * dtype_total_size
+        inference_requirements = 1.15 * dtype_total_size  # 1.15 allows A10G to run the `exact` preset on the 9b model
 
         if inference_requirements < total_memory:
             return preset
