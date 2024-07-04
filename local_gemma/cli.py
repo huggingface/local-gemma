@@ -47,7 +47,7 @@ parser.add_argument(
     type=str,
     default="9b",
     help=(
-        "Size of Gemma 2 instruct model to be used in the application ('9b' or '27'b) or, alternatively, a Hugging "
+        "Size of Gemma 2 instruct model to be used in the application ('9b' or '27b') or, alternatively, a Hugging "
         "Face repo. Defaults to '9b'."
     ),
 )
@@ -59,11 +59,11 @@ parser.add_argument(
 parser.add_argument(
     "--preset",
     type=str,
-    choices=["auto", "exact", "speed", "memory", "memory_extreme"],
+    choices=["auto", "exact", "memory", "memory_extreme"],
     default="auto",
     help=(
         "Sets the optimization strategy for the local model deployment. Defaults to 'auto', which selects the best "
-        "strategy for your device. 'exact' maximises accuracy, 'speed' maximises generation speed, 'memory' reduces "
+        "strategy for your device. 'exact' maximises accuracy, 'memory' reduces "
         "memory requirements through quantization, and 'memory_extreme' minimises memory requirements."
     ),
 )
