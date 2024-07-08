@@ -173,5 +173,9 @@ class LocalGemma2ForCausalLM(Gemma2ForCausalLM):
         if device not in str(model.device) and preset_kwargs.get("device_map", None) is None:
             # for consistent behaviour with bitsandbytes, we move the model to the device always
             model.to(device, dtype=preset_kwargs["torch_dtype"])
+    
+        if device == "cuda" and quantization == "hqq":
+            from hqq.utils.patching import prepare_for_inference
+            prepare_for_inference(model, backend="torchao_int4")
 
         return model
