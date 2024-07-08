@@ -18,7 +18,7 @@ from typing import Optional, Union, Dict
 import logging
 
 import torch
-from transformers import QuantoConfig, is_bitsandbytes_available, BitsAndBytesConfig
+from transformers import QuantoConfig, is_bitsandbytes_available, BitsAndBytesConfig, HqqConfig
 from transformers.utils import is_quanto_available, is_torch_sdpa_available, is_accelerate_available
 from transformers.models.gemma2 import Gemma2ForCausalLM, Gemma2Config
 from .utils.config import infer_device, infer_dtype, infer_memory_requirements
@@ -134,10 +134,15 @@ class LocalGemma2ForCausalLM(Gemma2ForCausalLM):
             preset_kwargs["quantization_config"] = quantization_config
         elif preset_kwargs.get("quantization_config"):
             if device == "cuda":
-                preset_kwargs["quantization_config"] = BitsAndBytesConfig(
-                    load_in_4bit=True,
-                    bnb_4bit_compute_dtype=preset_kwargs["torch_dtype"],
-                )
+                quantization = preset_kwargs["quantization"]
+                if quantization == "hqq":
+                    preset_kwargs["quantization_config"] = HqqConfig(nbits=4, group_size=64, quant_zero=False, quant_scale=False, axis=1) 
+                    preset_kwargs["device_map"] = "cuda"
+                elif quantization== "bnb":
+                    preset_kwargs["quantization_config"] = BitsAndBytesConfig(
+                        load_in_4bit=True,
+                        bnb_4bit_compute_dtype=preset_kwargs["torch_dtype"],
+                    )
             else:
                 preset_kwargs["quantization_config"] = QuantoConfig(
                     weights=preset_kwargs["quantization_config"]["weights"]

@@ -91,6 +91,13 @@ parser.add_argument(
     help="Forces a specific device to be used. By default uses cuda > mps > cpu, depending on availability.",
 )
 parser.add_argument(
+    "--quantization",
+    type=str,
+    choices=["bnb", "hqq"],
+    default="bnb",
+    help="Set the quantization method to use when using a cuda device",
+)
+parser.add_argument(
     "--dtype",
     type=str,
     help="The dtype in which computations are performed. Defaults to the dtype set by --preset",
@@ -106,6 +113,7 @@ parser.add_argument(
     type=int,
     help="Seed for text generation. Optional, use for reproducibility.",
 )
+
 parser.add_argument(
     "--benchmark",
     action="store_true",
