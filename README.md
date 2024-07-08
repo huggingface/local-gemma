@@ -6,17 +6,17 @@
     <p>Run Gemma-2 locally in Python, fast!</p>
 </h3>
 
-This repository provides an easy way to run [Gemma-2](https://huggingface.co/blog/gemma2) locally directly from your CLI (or via a Python library) and fast. It is built on top of the [🤗 Transformers](https://github.com/huggingface/transformers) library.
+This repository provides an easy way to run [Gemma-2](https://huggingface.co/blog/gemma2) locally directly from your CLI (or via a Python library) and fast. It is built on top of the [🤗 Transformers](https://github.com/huggingface/transformers) and [bitsandbytes](https://huggingface.co/docs/bitsandbytes/index) libraries.
 
 It can be configured to give fully equivalent results to the original implementation, or reduce memory requirements down
 to just the largest layer in the model!
 
 ## Installation
 
-There are three installation flavors of `local-gemma` installation, depending on your intended use case:
+There are two installation flavors of `local-gemma`, which you can select depending on your use case:
 
 <details>
-  <summary><b><font size="+0.5"><code>pipx</code> - Minimal local executable</font></b></summary>
+  <summary><b><font size="+0.5"><code>pipx</code> - Ideal for CLI</font></b></summary>
 
   First, follow the installation steps [here](https://github.com/pypa/pipx?tab=readme-ov-file#install-pipx) to install `pipx` on your environment.
 
@@ -40,13 +40,10 @@ There are three installation flavors of `local-gemma` installation, depending on
   pipx install local-gemma"[cpu]"
   ```
 
-  > [!NOTE]
-  > `pipx` installation creates its own Python environment, so you won't be able to use this library in a Python script with this installation method.
-
 </details>
 
 <details>
-  <summary><b><font size="+0.5"><code>pip</code> - Python package</font></b></summary>
+  <summary><b><font size="+0.5"><code>pip</code> - Ideal for Python (CLI + API)</font></b></summary>
 
   Local Gemma-2 can be installed as a hardware-specific Python package through `pip`. The only requirement is a Python
 installation, details for which can be found [here](https://wiki.python.org/moin/BeginnersGuide/Download). You can
@@ -83,13 +80,14 @@ pip install local-gemma"[cpu]"
 
 </details>
 
+<!---
 <details>
   <summary><b><font size="+0.5"><code>Docker</code> - Pre-prepared container</font></b></summary>
 
   > TODO(SG): add installation
 
 </details>
-
+--->
 
 ## CLI Usage
 
@@ -100,7 +98,7 @@ local-gemma
 ```
 
 > [!TIP]
-> The first time you run the application, it will request a read token to download the model. You can follow [this guide](https://huggingface.co/docs/hub/en/security-tokens) to create a token, and pass it through the `--token` argument. If you're new to Hugging Face and never used a Gemma model, you'll also need to accept the terms at the top of [this page](https://huggingface.co/google/gemma-2-9b-it).
+> Local Gemma will check for a Hugging Face "read" token to download the model. You can follow [this guide](https://huggingface.co/docs/hub/en/security-tokens) to create a token, and pass it when prompted to log-in. If you're new to Hugging Face and never used a Gemma model, you'll also need to accept the terms at the top of [this page](https://huggingface.co/google/gemma-2-9b-it).
 
 Alternatively, you can request a single output by passing a prompt, such as:
 
@@ -136,6 +134,9 @@ ls -la | local-gemma "Describe my files"
 To see all available decoding options, call `local-gemma -h`.
 
 ## Python Usage
+
+  > [!NOTE]
+  > The `pipx` installation method creates its own Python environment, so you will need to use the `pip` installation method to use this library in a Python script.
 
 Local Gemma-2 can be run locally through a Python interpreter using the familiar Transformers API. To enable a preset,
 import the model class from `local_gemma` and pass the `preset` argument to `from_pretrained`. For example, the
@@ -183,33 +184,33 @@ decoded_text = tokenizer.batch_decode(generated_ids)
 Local Gemma-2 provides three presets that trade-off accuracy, speed and memory. The following results highlight this
 trade-off using [Gemma-2 9b](https://huggingface.co/google/gemma-2-9b) with batch size 1 on an 80GB A100 GPU:
 
-| Mode           | Performance (?) | Inference Speed (tok/s) | Memory (GB) |
-|----------------|-----------------|-------------------------|-------------|
-| exact          | **a**           | 17.2                    | 18.3        |
-| memory         | c               | 13.8                    | 7.3         |
-| memory_extreme | d               | 13.8                    | 7.3         |
+| Mode           | Performance* | Inference Speed (tok/s) | Memory (GB) |
+|----------------|--------------|-------------------------|-------------|
+| exact          | **73.0**     | **17.2**                | 18.3        |
+| memory         | 72.1         | 13.8                    | **7.3**     |
+| memory_extreme | 72.1         | 13.8                    | **7.3**     |
+
+While an 80GB A100 places the full model on the device, only 3.7GB is required with the `memory_extreme` preset. See the
+section [Preset Details](#preset-details) for details.
+
+___
+*Zero-shot results averaged over Wino, ARC Easy, Arc Challenge, PIQA, HellaSwag, MMLU, OpenBook QA.
 
 ### Preset Details
 
-| Mode           | Attn Implementation | Weights Dtype | CPU Offload |
-|----------------|---------------------|---------------|-------------|
-| exact          | eager               | bf16          | no          |
-| memory         | eager               | int4          | no          |
-| memory_extreme | eager               | int4          | yes         |
+| Mode           | 9b Min Memory (GB) | 27b Min Memory (GB) | Weights dtype | CPU Offload |
+|----------------|--------------------|---------------------|---------------|-------------|
+| exact          | 18.3               | 68.2                | bf16          | no          |
+| memory         | 7.3                | 17.0                | int4          | no          |
+| memory_extreme | 3.7                | 4.7                 | int4          | yes         |
 
 `memory_extreme` implements [CPU offloading](https://huggingface.co/docs/accelerate/en/usage_guides/big_modeling) through
-[🤗 Accelerate](https://huggingface.co/docs/accelerate/en/index), reducing memory requirements down to the largest layer in the model (which in this case is the LM head).
+[🤗 Accelerate](https://huggingface.co/docs/accelerate/en/index), reducing memory requirements down to the largest layer 
+in the model (which in this case is the LM head).
 
-
-### Minimum Memory Requirements
-
-| Mode           | 9B   | 27B  |
-|----------------|------|------|
-| exact          | 18.3 | 68.2 |
-| memory         | 7.3  | 17.0 |
-| memory_extreme | 3.7  | 4.7  |
-
-Note: Due to [Gemma 2 logit soft-capping](https://huggingface.co/blog/gemma2#soft-capping-and-attention-implementations), SDPA/FA doesn't work well.
+Note: Due to [logit soft-capping](https://huggingface.co/blog/gemma2#soft-capping-and-attention-implementations), SDPA 
+and Flash Attention are not compatible with Gemma-2. We are aiming to bring a `speed` preset that uses `torch.compile`
+to improve the inference speed, stay tuned! Any contributions in Transformers are most welcome 🤗
 
 ## Acknowledgements
 Local Gemma-2 is a convenient wrapper around several open-source projects, which we thank explicitly below:

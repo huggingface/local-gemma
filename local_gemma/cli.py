@@ -19,6 +19,7 @@ import torch
 from transformers import AutoTokenizer, TextStreamer, set_seed
 from transformers.utils import logging
 
+from huggingface_hub import get_token, login
 from local_gemma import LocalGemma2ForCausalLM
 from .utils.benchmark import benchmark
 from .utils.config import infer_device, infer_dtype, get_prompt, get_generation_kwargs, infer_memory_requirements
@@ -147,6 +148,13 @@ def main():
     generation_kwargs = get_generation_kwargs(args.mode)
     base_prompt = get_prompt(args.mode)
     model_name = MODEL_NAMES.get(args.model) or args.model
+    if args.token is None:
+        if get_token() is None:
+            print("Using the gated Gemma model requires you to:")
+            print("1. Create an account on the Hugging Face Hub: https://huggingface.co/join")
+            print("2. Accept the Gemma-2 model terms of use: https://huggingface.co/google/gemma-2-9b")
+            print("3. Create an access token and paste it below: https://huggingface.co/settings/tokens")
+            login()
 
     if args.preset == "auto":
         args.preset = infer_memory_requirements(model_name, device, trust_remote_code=False, token=args.token)
@@ -197,6 +205,10 @@ def main():
         has_starting_prompt = len(args.prompt) > 0
         is_instruction_tuned = tokenizer.chat_template is not None
 
+        if device == "mps" and args.preset == "auto" and args.max_new_tokens is None:
+            print("Setting max new tokens to 1024 for faster mps generation. To bypass this limit, set `--max_new_tokens=2048`.")
+            args.max_new_tokens = 1024
+
         if not args.silent and not has_starting_prompt:
             print_help(is_instruction_tuned=is_instruction_tuned)
 
@@ -211,7 +223,7 @@ def main():
                 user_input = input(">>> ")
 
             # Handle special commands
-            if user_input == "!exit":
+            if user_input in ["!exit", "quit", "quit()"]:
                 break
             elif user_input == "!new session":
                 chat_history = []
@@ -251,6 +263,12 @@ def main():
 
                 if args.max_new_tokens is not None:
                     generation_kwargs["max_new_tokens"] = args.max_new_tokens
+                    input_ids_len = tokenized_chat.shape[-1]
+                    max_cache_len = args.max_new_tokens + input_ids_len
+                    if cache is not None and cache.max_cache_len < max_cache_len:
+                        # reset the cache
+                        generation_kwargs.pop("past_key_values")
+                        generation_kwargs["cache_implementation"] = "hybrid"
                 else:
                     generation_kwargs["max_length"] = model.config.max_position_embeddings
 
