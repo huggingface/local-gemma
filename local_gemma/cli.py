@@ -184,7 +184,7 @@ def main():
 
     tokenizer = AutoTokenizer.from_pretrained(model_name, token=args.token)
     model = LocalGemma2ForCausalLM.from_pretrained(
-        model_name, preset=args.preset, token=args.token, torch_dtype=dtype, device=device
+        model_name, preset=args.preset, token=args.token, torch_dtype=dtype, device=device, quantization = args.quantization
     )
     # TODO(joao): this if shouldn't be needed, fix in transformers
     model._supports_cache_class = True

@@ -109,6 +109,7 @@ class LocalGemma2ForCausalLM(Gemma2ForCausalLM):
         **kwargs,
     ) -> Gemma2ForCausalLM:
         device = infer_device(kwargs.pop("device", None))
+        quantization = kwargs.pop("quantization", None)
         preset_kwargs = cls.get_preset_kwargs(
             pretrained_model_name_or_path,
             preset,
@@ -134,7 +135,6 @@ class LocalGemma2ForCausalLM(Gemma2ForCausalLM):
             preset_kwargs["quantization_config"] = quantization_config
         elif preset_kwargs.get("quantization_config"):
             if device == "cuda":
-                quantization = preset_kwargs["quantization"]
                 if quantization == "hqq":
                     preset_kwargs["quantization_config"] = HqqConfig(nbits=4, group_size=64, quant_zero=False, quant_scale=False, axis=1) 
                     preset_kwargs["device_map"] = "cuda"
