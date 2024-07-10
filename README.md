@@ -216,6 +216,7 @@ to improve the inference speed, stay tuned! Any contributions in Transformers ar
 Local Gemma-2 is a convenient wrapper around several open-source projects, which we thank explicitly below:
 * [Transformers](https://huggingface.co/docs/transformers/en/index) for the PyTorch Gemma-2 implementation. Particularly [Arthur Zucker](https://github.com/ArthurZucker) for adding the model and the logit soft-capping fixes.
 * [bitsandbytes](https://huggingface.co/docs/bitsandbytes/index) for the 4-bit optimization on CUDA.
+* [hqq](https://github.com/mobiusml/hqq) for the 4-bit optimization and faster inference on CUDA.
 * [quanto](https://github.com/huggingface/optimum-quanto) for the 4-bit optimization on MPS + CPU.
 * [Accelerate](https://huggingface.co/docs/accelerate/en/index) for the large model loading utilities.
 
