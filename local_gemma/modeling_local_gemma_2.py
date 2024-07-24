@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import os
-os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "1"
 
 from typing import Optional, Union, Dict
 import logging
