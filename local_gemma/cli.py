@@ -17,6 +17,7 @@ import sys
 
 import torch
 from transformers import AutoTokenizer, TextStreamer, set_seed
+from transformers.cache_utils import HybridCache
 from transformers.utils import logging
 
 from huggingface_hub import get_token, login
@@ -141,6 +142,7 @@ def main():
     dtype = infer_dtype(device, args.dtype)
     generation_kwargs = get_generation_kwargs(args.mode)
     base_prompt = get_prompt(args.mode)
+    has_starting_prompt = len(args.prompt) > 0
     model_name = MODEL_NAMES.get(args.model) or args.model
     if args.token is None:
         if get_token() is None:
@@ -177,8 +179,19 @@ def main():
         logging.disable_progress_bar()
 
     tokenizer = AutoTokenizer.from_pretrained(model_name, token=args.token)
+    is_instruction_tuned = tokenizer.chat_template is not None
+
+    if args.preset == "speed" and device == "cuda" and (has_starting_prompt or not is_instruction_tuned):
+        # for single-turn responses, disable torch compile and enable fa2
+        # this way, we skip the lengthy compilation step and return the generation to the user as quickly as possible
+        torch_compile = False
+        attn_implementation = "flash_attention_2"
+    else:
+        # leave to the preset to decide these settings
+        torch_compile = attn_implementation = None
+
     model = LocalGemma2ForCausalLM.from_pretrained(
-        model_name, preset=args.preset, token=args.token, torch_dtype=dtype, device=device
+        model_name, preset=args.preset, torch_compile=torch_compile, token=args.token, torch_dtype=dtype, device=device, attn_implementation=attn_implementation,
     )
     # TODO(joao): this if shouldn't be needed, fix in transformers
     model._supports_cache_class = True
@@ -196,32 +209,40 @@ def main():
         if args.seed is not None:
             set_seed(args.seed)
 
-        has_starting_prompt = len(args.prompt) > 0
-        is_instruction_tuned = tokenizer.chat_template is not None
-
         padding = False
         pad_to_multiple_of = None
+
+        if args.max_new_tokens is None:
+            cache = HybridCache(
+                model.config,
+                max_batch_size=1,
+                max_cache_len=model.config.max_position_embeddings,
+                device=model.device,
+                dtype=model.dtype,
+            )
+            model.generation_config.cache_implementation = None
+        else:
+            # when generating using max_new_tokens, update the cache on each generation step to limit memory
+            cache = None
 
         if device == "mps" and args.preset == "auto" and args.max_new_tokens is None:
             print("Setting max new tokens to 1024 for faster mps generation. To bypass this limit, set `--max_new_tokens=2048`.")
             args.max_new_tokens = 1024
-        elif device == "cuda" and args.preset == "speed":
+        elif (device == "cuda" and args.preset == "speed") and (not has_starting_prompt or is_instruction_tuned):
             print("Compiling the model forward pass. This may take a few minutes, particularly the first time it is run...")
             padding = "longest"
             pad_to_multiple_of = model.config.max_position_embeddings // 4
-            # TODO(SG): remove debugging statements + range(3)
-            torch._logging.set_logs(graph_breaks=True, recompiles=True)
-            for multiple in range(1):
+            for multiple in range(3):
                 seq_len = (multiple + 1) * pad_to_multiple_of
                 input_ids = torch.ones((1, seq_len), dtype=torch.long, device=model.device)
                 # prefill + generation
-                model.generate(input_ids, max_new_tokens=2)
+                model.generate(input_ids, max_new_tokens=pad_to_multiple_of - 1, past_key_values=cache)
+                cache.reset()
 
         if not args.silent and not has_starting_prompt:
             print_help(is_instruction_tuned=is_instruction_tuned)
 
         streamer = TextStreamer(tokenizer, skip_prompt=True, **{"skip_special_tokens": True})
-        cache = None
         chat_history = []
         while True:
             # Get input to the model
@@ -264,10 +285,6 @@ def main():
                         "past_key_values": cache,
                     }
                 )
-                # TODO(joao): this if shouldn't be needed, fix in transformers
-                if cache is not None:
-                    generation_kwargs["cache_implementation"] = None
-
                 if args.max_new_tokens is not None:
                     generation_kwargs["max_new_tokens"] = args.max_new_tokens
                     input_ids_len = input_ids.shape[-1]
@@ -279,6 +296,8 @@ def main():
                 else:
                     generation_kwargs["max_length"] = model.config.max_position_embeddings
 
+                print(cache.key_cache[0].data_ptr())
+                print(model_inputs.input_ids.shape)
                 gen_out = model.generate(**model_inputs, **generation_kwargs)
 
                 # Store the cache for the next generation round; Pull the model output into the chat history.

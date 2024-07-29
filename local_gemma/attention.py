@@ -58,8 +58,6 @@ class Gemma2FusedAttention(nn.Module):
         )
         self.sliding_window = config.sliding_window if not bool(layer_idx % 2) else None
 
-    # TODO(SG): we'll still get size mis-match errors despite this hook
-    # Possibly migrate to a method `.fuse_attention` that applies the transformations after loading
     def load_hook(self, state_dict, prefix, *args):
         if prefix + "q_proj.weight" in state_dict:
             q_proj = state_dict.pop(prefix + "q_proj.weight")
