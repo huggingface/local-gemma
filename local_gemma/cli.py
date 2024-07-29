@@ -24,6 +24,8 @@ from local_gemma import LocalGemma2ForCausalLM
 from .utils.benchmark import benchmark
 from .utils.config import infer_device, infer_dtype, get_prompt, get_generation_kwargs, infer_memory_requirements
 
+torch.set_float32_matmul_precision("high")
+
 
 MODEL_NAMES = {
     "9b": "google/gemma-2-9b-it",
@@ -197,9 +199,23 @@ def main():
         has_starting_prompt = len(args.prompt) > 0
         is_instruction_tuned = tokenizer.chat_template is not None
 
+        padding = False
+        pad_to_multiple_of = None
+
         if device == "mps" and args.preset == "auto" and args.max_new_tokens is None:
             print("Setting max new tokens to 1024 for faster mps generation. To bypass this limit, set `--max_new_tokens=2048`.")
             args.max_new_tokens = 1024
+        elif device == "cuda" and args.preset == "speed":
+            print("Compiling the model forward pass. This may take a few minutes, particularly the first time it is run...")
+            padding = "longest"
+            pad_to_multiple_of = model.config.max_position_embeddings // 4
+            # TODO(SG): remove debugging statements + range(3)
+            torch._logging.set_logs(graph_breaks=True, recompiles=True)
+            for multiple in range(1):
+                seq_len = (multiple + 1) * pad_to_multiple_of
+                input_ids = torch.ones((1, seq_len), dtype=torch.long, device=model.device)
+                # prefill + generation
+                model.generate(input_ids, max_new_tokens=2)
 
         if not args.silent and not has_starting_prompt:
             print_help(is_instruction_tuned=is_instruction_tuned)
@@ -234,13 +250,12 @@ def main():
 
                 chat_history += [{"role": "user", "content": user_input},]
                 if is_instruction_tuned:
-                    tokenized_chat = tokenizer.apply_chat_template(
-                        chat_history, tokenize=True, add_generation_prompt=True, return_tensors="pt"
-                    )
-                else:
-                    tokenized_chat = tokenizer(user_input, return_tensors="pt").input_ids
+                    user_input = tokenizer.apply_chat_template(chat_history, tokenize=False, add_generation_prompt=True)
 
-                tokenized_chat = tokenized_chat.to(device)
+                model_inputs = tokenizer(user_input, return_tensors="pt", return_attention_mask=pad_to_multiple_of is not None or device == "mps", padding=padding, pad_to_multiple_of=pad_to_multiple_of)
+                input_ids = model_inputs.input_ids
+
+                model_inputs = model_inputs.to(device)
                 generation_kwargs.update(
                     {
                         "streamer": streamer,
@@ -255,7 +270,7 @@ def main():
 
                 if args.max_new_tokens is not None:
                     generation_kwargs["max_new_tokens"] = args.max_new_tokens
-                    input_ids_len = tokenized_chat.shape[-1]
+                    input_ids_len = input_ids.shape[-1]
                     max_cache_len = args.max_new_tokens + input_ids_len
                     if cache is not None and cache.max_cache_len < max_cache_len:
                         # reset the cache
@@ -264,14 +279,11 @@ def main():
                 else:
                     generation_kwargs["max_length"] = model.config.max_position_embeddings
 
-                if device == "mps":
-                    generation_kwargs["attention_mask"] = torch.ones_like(tokenized_chat)
-
-                gen_out = model.generate(input_ids=tokenized_chat, **generation_kwargs)
+                gen_out = model.generate(**model_inputs, **generation_kwargs)
 
                 # Store the cache for the next generation round; Pull the model output into the chat history.
                 cache = gen_out.past_key_values
-                model_tokens = gen_out.sequences[0, tokenized_chat.shape[1]:]
+                model_tokens = gen_out.sequences[0, input_ids.shape[1]:]
                 model_output_text = tokenizer.decode(model_tokens, skip_special_tokens=True)
                 chat_history += [{"role": "assistant", "content": model_output_text},]
 
