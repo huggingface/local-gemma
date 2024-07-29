@@ -92,6 +92,13 @@ parser.add_argument(
     help="Forces a specific device to be used. By default uses cuda > mps > cpu, depending on availability.",
 )
 parser.add_argument(
+    "--quantization",
+    type=str,
+    choices=["bnb", "hqq"],
+    default="bnb",
+    help="Set the quantization method to use when using a cuda device",
+)
+parser.add_argument(
     "--dtype",
     type=str,
     help="The dtype in which computations are performed. Defaults to the dtype set by --preset",
@@ -107,6 +114,7 @@ parser.add_argument(
     type=int,
     help="Seed for text generation. Optional, use for reproducibility.",
 )
+
 parser.add_argument(
     "--benchmark",
     action="store_true",
@@ -176,7 +184,7 @@ def main():
 
     tokenizer = AutoTokenizer.from_pretrained(model_name, token=args.token)
     model = LocalGemma2ForCausalLM.from_pretrained(
-        model_name, preset=args.preset, token=args.token, torch_dtype=dtype, device=device
+        model_name, preset=args.preset, token=args.token, torch_dtype=dtype, device=device, quantization = args.quantization
     )
     # TODO(joao): this if shouldn't be needed, fix in transformers
     model._supports_cache_class = True
