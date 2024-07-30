@@ -13,6 +13,7 @@
 # limitations under the License.
 import os
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
+os.environ["TORCHINDUCTOR_FX_GRAPH_CACHE"] = "1"
 
 import argparse
 import sys
