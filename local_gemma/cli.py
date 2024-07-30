@@ -11,6 +11,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import os
+os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
 import argparse
 import sys
@@ -191,7 +193,13 @@ def main():
         torch_compile = attn_implementation = None
 
     model = LocalGemma2ForCausalLM.from_pretrained(
-        model_name, preset=args.preset, torch_compile=torch_compile, token=args.token, torch_dtype=dtype, device=device, attn_implementation=attn_implementation,
+        model_name,
+        preset=args.preset,
+        torch_compile=torch_compile,
+        token=args.token,
+        torch_dtype=dtype,
+        device=device,
+        attn_implementation=attn_implementation,
     )
     # TODO(joao): this if shouldn't be needed, fix in transformers
     model._supports_cache_class = True
@@ -209,8 +217,9 @@ def main():
         if args.seed is not None:
             set_seed(args.seed)
 
-        padding = False
-        pad_to_multiple_of = None
+        if device == "mps" and args.preset == "auto" and args.max_new_tokens is None:
+            print("Setting max new tokens to 1024 for faster mps generation. To bypass this limit, set `--max_new_tokens=2048`.")
+            args.max_new_tokens = 1024
 
         if args.max_new_tokens is None:
             cache = HybridCache(
@@ -225,18 +234,17 @@ def main():
             # when generating using max_new_tokens, update the cache on each generation step to limit memory
             cache = None
 
-        if device == "mps" and args.preset == "auto" and args.max_new_tokens is None:
-            print("Setting max new tokens to 1024 for faster mps generation. To bypass this limit, set `--max_new_tokens=2048`.")
-            args.max_new_tokens = 1024
-        elif (device == "cuda" and args.preset == "speed") and (not has_starting_prompt or is_instruction_tuned):
+        if hasattr(model.forward, "_torchdynamo_orig_callable"):
             print("Compiling the model forward pass. This may take a few minutes, particularly the first time it is run...")
-            padding = "longest"
-            pad_to_multiple_of = model.config.max_position_embeddings // 4
-            for multiple in range(3):
-                seq_len = (multiple + 1) * pad_to_multiple_of
-                input_ids = torch.ones((1, seq_len), dtype=torch.long, device=model.device)
-                # prefill + generation
-                model.generate(input_ids, max_new_tokens=pad_to_multiple_of - 1, past_key_values=cache)
+            for _ in range(2):
+                chat_history = [{"role": "user", "content": "The theory of relativity states"},]
+                for _ in range(3):
+                    dummy_inputs = tokenizer.apply_chat_template(chat_history, tokenize=False, add_generation_prompt=True)
+                    model_inputs = tokenizer(dummy_inputs, return_tensors="pt").to(model.device)
+                    # prefill + generation
+                    model_tokens = model.generate(**model_inputs, past_key_values=cache, max_new_tokens=16)
+                    model_output_text = tokenizer.decode(model_tokens[0, model_inputs.input_ids.shape[1]:], skip_special_tokens=True)
+                    chat_history += [{"role": "assistant", "content": model_output_text}, {"role": "user", "content": "Please repeat the above!"},]
                 cache.reset()
 
         if not args.silent and not has_starting_prompt:
@@ -273,7 +281,11 @@ def main():
                 if is_instruction_tuned:
                     user_input = tokenizer.apply_chat_template(chat_history, tokenize=False, add_generation_prompt=True)
 
-                model_inputs = tokenizer(user_input, return_tensors="pt", return_attention_mask=pad_to_multiple_of is not None or device == "mps", padding=padding, pad_to_multiple_of=pad_to_multiple_of)
+                model_inputs = tokenizer(
+                    user_input,
+                    return_tensors="pt",
+                    return_attention_mask=device == "mps",
+                )
                 input_ids = model_inputs.input_ids
 
                 model_inputs = model_inputs.to(device)
@@ -281,7 +293,6 @@ def main():
                     {
                         "streamer": streamer,
                         "assistant_model": assistant_model,
-                        "return_dict_in_generate": True,
                         "past_key_values": cache,
                     }
                 )
@@ -296,13 +307,8 @@ def main():
                 else:
                     generation_kwargs["max_length"] = model.config.max_position_embeddings
 
-                print(cache.key_cache[0].data_ptr())
-                print(model_inputs.input_ids.shape)
-                gen_out = model.generate(**model_inputs, **generation_kwargs)
-
-                # Store the cache for the next generation round; Pull the model output into the chat history.
-                cache = gen_out.past_key_values
-                model_tokens = gen_out.sequences[0, input_ids.shape[1]:]
+                model_tokens = model.generate(**model_inputs, **generation_kwargs)
+                model_tokens = model_tokens[0, input_ids.shape[1]:]
                 model_output_text = tokenizer.decode(model_tokens, skip_special_tokens=True)
                 chat_history += [{"role": "assistant", "content": model_output_text},]
 

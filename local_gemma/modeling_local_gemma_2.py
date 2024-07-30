@@ -16,6 +16,7 @@ os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "1"
 
 from typing import Optional, Union, Dict
 import logging
+from tqdm import tqdm
 
 import torch
 from transformers import QuantoConfig, is_bitsandbytes_available, BitsAndBytesConfig
@@ -198,7 +199,7 @@ class LocalGemma2ForCausalLM(Gemma2ForCausalLM):
         return model
 
 def fuse_attention_weights(model: LocalGemma2ForCausalLM, device, torch_dtype) -> LocalGemma2ForCausalLM:
-    for idx, layer in enumerate(model.model.layers):
+    for idx, layer in tqdm(enumerate(model.model.layers), desc="Fusing attention weights", total=model.config.num_hidden_layers):
         state_dict = layer.self_attn.state_dict()
         del layer.self_attn
         layer.self_attn = Gemma2FusedAttention(model.config, layer_idx=idx)
