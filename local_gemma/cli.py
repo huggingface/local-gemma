@@ -236,7 +236,7 @@ def main():
 
         if hasattr(model.forward, "_torchdynamo_orig_callable"):
             print("Compiling the model forward pass. This may take a few minutes, particularly the first time it is run...")
-            for _ in range(2):
+            for _ in range(3):
                 chat_history = [{"role": "user", "content": "The theory of relativity states"},]
                 for _ in range(3):
                     dummy_inputs = tokenizer.apply_chat_template(chat_history, tokenize=False, add_generation_prompt=True)
