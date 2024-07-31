@@ -12,8 +12,7 @@ It can be configured to give fully equivalent results to the original implementa
 to just the largest layer in the model!
 
 > [!IMPORTANT]
-> There is a new "speed" preset for running `local-gemma` on CUDA GPUs. 
-> It makes use of torch compile for up to 6x faster generation ⚡️
+> There is a new "speed" preset for running `local-gemma` on CUDA ⚡️ It makes use of torch compile for up to 6x faster generation.
 > Set `--preset="speed"` when using the CLI, or pass `preset="speed"` to `from_pretrained` when using the Python API
 
 ## Installation
