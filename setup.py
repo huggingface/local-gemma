@@ -23,7 +23,7 @@ DEPS = [
 ]
 
 EXTRA_CUDA_DEPS = ["bitsandbytes"]
-EXTRA_MPS_DEPS = ["quanto>=0.2.0"]
+EXTRA_MPS_DEPS = ["quanto>=0.2.0", "torch>=2.4.0"]
 
 setuptools.setup(
     name='local_gemma',
