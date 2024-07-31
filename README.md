@@ -11,7 +11,7 @@ This repository provides an easy way to run [Gemma-2](https://huggingface.co/blo
 It can be configured to give fully equivalent results to the original implementation, or reduce memory requirements down
 to just the largest layer in the model!
 
-> [!NEW]
+> [!IMPORTANT]
 > There is a new "speed" preset for running `local-gemma` on CUDA GPUs. 
 > It makes use of torch compile for up to 6x faster generation ⚡️
 > Set `--preset="speed"` when using the CLI, or pass `preset="speed"` to `from_pretrained` when using the Python API
