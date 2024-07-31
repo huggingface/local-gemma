@@ -152,6 +152,7 @@ class LocalGemma2ForCausalLM(Gemma2ForCausalLM):
             if device == "cuda":
                 preset_kwargs["quantization_config"] = BitsAndBytesConfig(
                     load_in_4bit=True,
+                    llm_int8_enable_fp32_cpu_offload=True,
                     bnb_4bit_compute_dtype=preset_kwargs["torch_dtype"],
                 )
             else:

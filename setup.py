@@ -18,11 +18,11 @@ import setuptools
 DEPS = [
     "setuptools",
     "torch>=2.1.1",
-    "accelerate",
+    "accelerate>=0.33.0",
     "transformers>=4.43.2",
 ]
 
-EXTRA_CUDA_DEPS = ["bitsandbytes"]
+EXTRA_CUDA_DEPS = ["bitsandbytes>=0.43.2"]
 EXTRA_MPS_DEPS = ["quanto>=0.2.0", "torch>=2.4.0"]
 
 setuptools.setup(
