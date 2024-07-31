@@ -167,7 +167,8 @@ def main():
         )
 
     # Triggers assisted generation on CUDA or MPS devices, assuming the default 9b or 27b models are used. Assisted
-    # generation is not beneficial on most CPU settings. Can't be used with the speed preset.
+    # generation is not beneficial on most CPU settings. Can't be used with the speed preset (more precisely, with
+    # `torch.compile`).
     if (
         args.model in ('9b', '27b')
         and ("cuda" in device or device.isdigit() or "mps" in device)
@@ -237,20 +238,12 @@ def main():
             )
             args.max_new_tokens = 1024
 
-        if args.max_new_tokens is None:
-            max_cache_len = model.config.max_position_embeddings
-
-            # On specific GPUs resources are tight with assisted generation, so we artificially limit the cache size
-            if assistant_model is not None and device == "cuda":
-                cache_memory = 1e10 / (DTYPE_MODIFIER[args.preset] / 8)  # magic number :)
-                while spare_memory < cache_memory:
-                    max_cache_len = max_cache_len // 2
-                    cache_memory /= 2
-
+        # Note: as of transformers 4.44, assisted generation does NOT work with any cache except dynamic cache
+        if args.max_new_tokens is None and assistant_model is None:
             cache = HybridCache(
                 model.config,
                 max_batch_size=1,
-                max_cache_len=max_cache_len,
+                max_cache_len=model.config.max_position_embeddings,
                 device=model.device,
                 dtype=model.dtype,
             )
