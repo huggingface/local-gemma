@@ -22,6 +22,7 @@ import torch
 from transformers import AutoTokenizer, TextStreamer, set_seed
 from transformers.cache_utils import HybridCache
 from transformers.utils import logging
+from accelerate.utils import is_torch_version
 
 from huggingface_hub import get_token, login
 from local_gemma import LocalGemma2ForCausalLM
@@ -237,6 +238,8 @@ def main():
 
         if hasattr(model.forward, "_torchdynamo_orig_callable"):
             print("Compiling the model forward pass. This may take a few minutes, particularly the first time it is run...")
+            if not is_torch_version(">=", "2.4"):
+                print("Install torch>=2.4.0 to cache the compiled function across runs: https://pytorch.org/get-started/locally/")
             for _ in range(3):
                 chat_history = [{"role": "user", "content": "The theory of relativity states"},]
                 for _ in range(3):
