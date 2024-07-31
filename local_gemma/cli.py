@@ -239,16 +239,16 @@ def main():
         if hasattr(model.forward, "_torchdynamo_orig_callable"):
             print("Compiling the model forward pass. This may take a few minutes, particularly the first time it is run...")
             if not is_torch_version(">=", "2.4"):
-                print("Install torch>=2.4.0 to cache the compiled function across runs: https://pytorch.org/get-started/locally/")
-            for _ in range(3):
-                chat_history = [{"role": "user", "content": "The theory of relativity states"},]
-                for _ in range(3):
-                    dummy_inputs = tokenizer.apply_chat_template(chat_history, tokenize=False, add_generation_prompt=True)
-                    model_inputs = tokenizer(dummy_inputs, return_tensors="pt").to(model.device)
-                    # prefill + generation
-                    model_tokens = model.generate(**model_inputs, past_key_values=cache, max_new_tokens=16)
-                    model_output_text = tokenizer.decode(model_tokens[0, model_inputs.input_ids.shape[1]:], skip_special_tokens=True)
-                    chat_history += [{"role": "assistant", "content": model_output_text}, {"role": "user", "content": "Please repeat the above!"},]
+                print("Install torch>=2.4.0 to cache the FX graphs across runs: https://pytorch.org/get-started/locally/")
+            chat_history = [{"role": "user", "content": "The theory of relativity states"}, ]
+            # Two warm-up runs: First run warms up model (triton autotuning etc). Second run records the graph and plays it. The third run is the fast path...
+            for _ in range(2):
+                dummy_inputs = tokenizer.apply_chat_template(chat_history, tokenize=False, add_generation_prompt=True)
+                model_inputs = tokenizer(dummy_inputs, return_tensors="pt").to(model.device)
+                # prefill + generation
+                model_tokens = model.generate(**model_inputs, past_key_values=cache, max_new_tokens=16)
+                model_output_text = tokenizer.decode(model_tokens[0, model_inputs.input_ids.shape[1]:], skip_special_tokens=True)
+                chat_history += [{"role": "assistant", "content": model_output_text},  {"role": "user", "content": "Please repeat the above!"},]
                 cache.reset()
 
         if not args.silent and not has_starting_prompt:
