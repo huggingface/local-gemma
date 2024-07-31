@@ -114,10 +114,11 @@ local-gemma --model 27b
 ```
 
 Local Gemma-2 will automatically find the most performant preset for your hardware, trading-off speed and memory. For more
-control over generation speed and memory usage, set the `--preset` argument to one of three available options:
+control over generation speed and memory usage, set the `--preset` argument to one of four available options:
 1. exact: match the original results by maximizing accuracy
-2. memory: reducing memory through 4-bit quantization
-3. memory_extreme: minimizing memory through 4-bit quantization and CPU offload
+2. speed: maximize throughput through torch compile (CUDA only!)
+3. memory: reducing memory through 4-bit quantization
+4. memory_extreme: minimizing memory through 4-bit quantization and CPU offload
 
 You can also control the style of the generated text through the `--mode` flag, one of "chat", "factual" or "creative":
 
@@ -186,7 +187,8 @@ trade-off using [Gemma-2 9b](https://huggingface.co/google/gemma-2-9b) with batc
 
 | Mode           | Performance* | Inference Speed (tok/s) | Memory (GB) |
 |----------------|--------------|-------------------------|-------------|
-| exact          | **73.0**     | **17.2**                | 18.3        |
+| exact          | **73.0**     | 17.2                    | 18.3        |
+| speed          | **73.0**     | **62.0**                | 19.0        |
 | memory         | 72.1         | 13.8                    | **7.3**     |
 | memory_extreme | 72.1         | 13.8                    | **7.3**     |
 
@@ -200,7 +202,8 @@ ___
 
 | Mode           | 9b Min Memory (GB) | 27b Min Memory (GB) | Weights dtype | CPU Offload |
 |----------------|--------------------|---------------------|---------------|-------------|
-| exact          | 18.3               | 68.2                | bf16          | no          |
+| exact          | 18.3               | 54.6                | bf16          | no          |
+| speed          | 19.0               | 55.8                | bf16          | no          |
 | memory         | 7.3                | 17.0                | int4          | no          |
 | memory_extreme | 3.7                | 4.7                 | int4          | yes         |
 
@@ -208,9 +211,6 @@ ___
 [🤗 Accelerate](https://huggingface.co/docs/accelerate/en/index), reducing memory requirements down to the largest layer 
 in the model (which in this case is the LM head).
 
-Note: Due to [logit soft-capping](https://huggingface.co/blog/gemma2#soft-capping-and-attention-implementations), SDPA 
-and Flash Attention are not compatible with Gemma-2. We are aiming to bring a `speed` preset that uses `torch.compile`
-to improve the inference speed, stay tuned! Any contributions in Transformers are most welcome 🤗
 
 ## Acknowledgements
 Local Gemma-2 is a convenient wrapper around several open-source projects, which we thank explicitly below:
