@@ -11,18 +11,25 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import os
+os.environ["TOKENIZERS_PARALLELISM"] = "false"
+os.environ["TORCHINDUCTOR_FX_GRAPH_CACHE"] = "1"
 
 import argparse
 import sys
 
 import torch
 from transformers import AutoTokenizer, TextStreamer, set_seed
+from transformers.cache_utils import HybridCache
 from transformers.utils import logging
+from accelerate.utils import is_torch_version
 
 from huggingface_hub import get_token, login
 from local_gemma import LocalGemma2ForCausalLM
 from .utils.benchmark import benchmark
 from .utils.config import infer_device, infer_dtype, get_prompt, get_generation_kwargs, infer_memory_requirements
+
+torch.set_float32_matmul_precision("high")
 
 
 MODEL_NAMES = {
@@ -139,6 +146,7 @@ def main():
     dtype = infer_dtype(device, args.dtype)
     generation_kwargs = get_generation_kwargs(args.mode)
     base_prompt = get_prompt(args.mode)
+    has_starting_prompt = len(args.prompt) > 0
     model_name = MODEL_NAMES.get(args.model) or args.model
     if args.token is None:
         if get_token() is None:
@@ -175,8 +183,25 @@ def main():
         logging.disable_progress_bar()
 
     tokenizer = AutoTokenizer.from_pretrained(model_name, token=args.token)
+    is_instruction_tuned = tokenizer.chat_template is not None
+
+    if args.preset == "speed" and device == "cuda" and (has_starting_prompt or not is_instruction_tuned):
+        # for single-turn responses, disable torch compile and enable fa2
+        # this way, we skip the lengthy compilation step and return the generation to the user as quickly as possible
+        torch_compile = False
+        attn_implementation = "flash_attention_2"
+    else:
+        # leave to the preset to decide these settings
+        torch_compile = attn_implementation = None
+
     model = LocalGemma2ForCausalLM.from_pretrained(
-        model_name, preset=args.preset, token=args.token, torch_dtype=dtype, device=device
+        model_name,
+        preset=args.preset,
+        torch_compile=torch_compile,
+        token=args.token,
+        torch_dtype=dtype,
+        device=device,
+        attn_implementation=attn_implementation,
     )
     # TODO(joao): this if shouldn't be needed, fix in transformers
     model._supports_cache_class = True
@@ -194,18 +219,42 @@ def main():
         if args.seed is not None:
             set_seed(args.seed)
 
-        has_starting_prompt = len(args.prompt) > 0
-        is_instruction_tuned = tokenizer.chat_template is not None
-
         if device == "mps" and args.preset == "auto" and args.max_new_tokens is None:
             print("Setting max new tokens to 1024 for faster mps generation. To bypass this limit, set `--max_new_tokens=2048`.")
             args.max_new_tokens = 1024
+
+        if args.max_new_tokens is None:
+            cache = HybridCache(
+                model.config,
+                max_batch_size=1,
+                max_cache_len=model.config.max_position_embeddings,
+                device=model.device,
+                dtype=model.dtype,
+            )
+            model.generation_config.cache_implementation = None
+        else:
+            # when generating using max_new_tokens, update the cache on each generation step to limit memory
+            cache = None
+
+        if hasattr(model.forward, "_torchdynamo_orig_callable"):
+            print("Compiling the model forward pass. This may take a few minutes, particularly the first time it is run...")
+            if not is_torch_version(">=", "2.4"):
+                print("Install torch>=2.4.0 to cache the FX graphs across runs: https://pytorch.org/get-started/locally/")
+            chat_history = [{"role": "user", "content": "The theory of relativity states"}, ]
+            # Two warm-up runs: First run warms up model (triton autotuning etc). Second run records the graph and plays it. The third run is the fast path...
+            for _ in range(2):
+                dummy_inputs = tokenizer.apply_chat_template(chat_history, tokenize=False, add_generation_prompt=True)
+                model_inputs = tokenizer(dummy_inputs, return_tensors="pt").to(model.device)
+                # prefill + generation
+                model_tokens = model.generate(**model_inputs, past_key_values=cache, max_new_tokens=16)
+                model_output_text = tokenizer.decode(model_tokens[0, model_inputs.input_ids.shape[1]:], skip_special_tokens=True)
+                chat_history += [{"role": "assistant", "content": model_output_text},  {"role": "user", "content": "Please repeat the above!"},]
+                cache.reset()
 
         if not args.silent and not has_starting_prompt:
             print_help(is_instruction_tuned=is_instruction_tuned)
 
         streamer = TextStreamer(tokenizer, skip_prompt=True, **{"skip_special_tokens": True})
-        cache = None
         chat_history = []
         while True:
             # Get input to the model
@@ -234,28 +283,26 @@ def main():
 
                 chat_history += [{"role": "user", "content": user_input},]
                 if is_instruction_tuned:
-                    tokenized_chat = tokenizer.apply_chat_template(
-                        chat_history, tokenize=True, add_generation_prompt=True, return_tensors="pt"
-                    )
-                else:
-                    tokenized_chat = tokenizer(user_input, return_tensors="pt").input_ids
+                    user_input = tokenizer.apply_chat_template(chat_history, tokenize=False, add_generation_prompt=True)
 
-                tokenized_chat = tokenized_chat.to(device)
+                model_inputs = tokenizer(
+                    user_input,
+                    return_tensors="pt",
+                    return_attention_mask=device == "mps",
+                )
+                input_ids = model_inputs.input_ids
+
+                model_inputs = model_inputs.to(device)
                 generation_kwargs.update(
                     {
                         "streamer": streamer,
                         "assistant_model": assistant_model,
-                        "return_dict_in_generate": True,
                         "past_key_values": cache,
                     }
                 )
-                # TODO(joao): this if shouldn't be needed, fix in transformers
-                if cache is not None:
-                    generation_kwargs["cache_implementation"] = None
-
                 if args.max_new_tokens is not None:
                     generation_kwargs["max_new_tokens"] = args.max_new_tokens
-                    input_ids_len = tokenized_chat.shape[-1]
+                    input_ids_len = input_ids.shape[-1]
                     max_cache_len = args.max_new_tokens + input_ids_len
                     if cache is not None and cache.max_cache_len < max_cache_len:
                         # reset the cache
@@ -264,14 +311,8 @@ def main():
                 else:
                     generation_kwargs["max_length"] = model.config.max_position_embeddings
 
-                if device == "mps":
-                    generation_kwargs["attention_mask"] = torch.ones_like(tokenized_chat)
-
-                gen_out = model.generate(input_ids=tokenized_chat, **generation_kwargs)
-
-                # Store the cache for the next generation round; Pull the model output into the chat history.
-                cache = gen_out.past_key_values
-                model_tokens = gen_out.sequences[0, tokenized_chat.shape[1]:]
+                model_tokens = model.generate(**model_inputs, **generation_kwargs)
+                model_tokens = model_tokens[0, input_ids.shape[1]:]
                 model_output_text = tokenizer.decode(model_tokens, skip_special_tokens=True)
                 chat_history += [{"role": "assistant", "content": model_output_text},]
 

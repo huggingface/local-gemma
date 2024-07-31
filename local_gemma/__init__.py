@@ -12,4 +12,5 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from .attention import GEMMA2_ATTENTION_CLASSES
 from .modeling_local_gemma_2 import LocalGemma2ForCausalLM

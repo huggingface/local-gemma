@@ -12,15 +12,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import os
-os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "1"
-
 from typing import Optional, Union, Dict
 import logging
+from tqdm import tqdm
 
 import torch
 from transformers import QuantoConfig, is_bitsandbytes_available, BitsAndBytesConfig
-from transformers.utils import is_quanto_available, is_torch_sdpa_available, is_accelerate_available
-from transformers.models.gemma2 import Gemma2ForCausalLM, Gemma2Config
+from transformers.utils import is_quanto_available, is_accelerate_available
+from transformers.models.gemma2.configuration_gemma2 import Gemma2Config
+from transformers.models.gemma2.modeling_gemma2 import Gemma2ForCausalLM, GEMMA2_ATTENTION_CLASSES
+import transformers.models.gemma2.modeling_gemma2
+from .attention import Gemma2FusedAttention
 from .utils.config import infer_device, infer_dtype, infer_memory_requirements
 
 
@@ -28,6 +30,11 @@ logger = logging.getLogger(__name__)
 
 EXACT = {
     "attn_implementation": "eager",
+}
+
+SPEED = {
+    "attn_implementation": "eager",
+    "torch_compile": True,
 }
 
 MEMORY = {
@@ -49,9 +56,16 @@ MEMORY_EXTREME = {
 PRESET_MAPPING = {
     "auto": None,
     "exact": EXACT,
+    "speed": SPEED,
     "memory": MEMORY,
     "memory_extreme": MEMORY_EXTREME,
 }
+
+transformers.models.gemma2.modeling_gemma2.GEMMA2_ATTENTION_CLASSES = {
+    **GEMMA2_ATTENTION_CLASSES,
+    "fused": Gemma2FusedAttention,
+}
+
 
 class LocalGemma2ForCausalLM(Gemma2ForCausalLM):
     @staticmethod
@@ -65,13 +79,11 @@ class LocalGemma2ForCausalLM(Gemma2ForCausalLM):
 
         preset_kwargs = PRESET_MAPPING[preset]
 
+        if preset == "speed" and device != "cuda":
+            # disable torch compile on non-cuda devices since it's not compatible
+            preset_kwargs["torch_compile"] = False
+
         if preset in ["memory", "memory_extreme"]:
-            if not is_torch_sdpa_available():
-                logger.warning_once(
-                    "Detected PyTorch version <2.1.1. For faster inference through SDPA attention, install PyTorch "
-                    "v2.1.1 or later through the official instructions: https://pytorch.org/"
-                )
-                preset_kwargs["attn_implementation"] = "eager"
             if device == "cuda" and not is_bitsandbytes_available():
                 raise ImportError(
                     f"The {preset} preset on CUDA requires the `bitsandbytes` package. Please install bitsandbytes through: "
@@ -97,6 +109,7 @@ class LocalGemma2ForCausalLM(Gemma2ForCausalLM):
         cls,
         pretrained_model_name_or_path: Optional[Union[str, os.PathLike]],
         preset: Optional[str] = "auto",
+        torch_compile: Optional[bool] = None,
         *model_args,
         config: Optional[Union[Gemma2Config, str, os.PathLike]] = None,
         cache_dir: Optional[Union[str, os.PathLike]] = None,
@@ -128,6 +141,9 @@ class LocalGemma2ForCausalLM(Gemma2ForCausalLM):
                     f"This can cause instabilities in generation for larger models, e.g. the 27b checkpoints."
                 )
         preset_kwargs["torch_dtype"] = torch_dtype
+
+        preset_torch_compile = preset_kwargs.pop("torch_compile", False)
+        torch_compile = torch_compile if torch_compile is not None else preset_torch_compile
 
         quantization_config = kwargs.pop("quantization_config", None)
         if quantization_config is not None:
@@ -170,4 +186,23 @@ class LocalGemma2ForCausalLM(Gemma2ForCausalLM):
             # for consistent behaviour with bitsandbytes, we move the model to the device always
             model.to(device, dtype=preset_kwargs["torch_dtype"])
 
+        if torch_compile and device != "cuda":
+            raise ValueError(
+                "Torch compile is only compatible with cuda devices. Set `torch_compile=False` in `.from_pretrained`"
+                f"for device {device}."
+            )
+        elif torch_compile:
+            model = fuse_attention_weights(model, device, torch_dtype)
+            model.forward = torch.compile(model.forward, mode="reduce-overhead", fullgraph=True)
+
         return model
+
+def fuse_attention_weights(model: LocalGemma2ForCausalLM, device, torch_dtype) -> LocalGemma2ForCausalLM:
+    for idx, layer in tqdm(enumerate(model.model.layers), desc="Fusing attention weights", total=model.config.num_hidden_layers):
+        state_dict = layer.self_attn.state_dict()
+        del layer.self_attn
+        layer.self_attn = Gemma2FusedAttention(model.config, layer_idx=idx)
+        # convert un-fused to fused through the pre-register hook
+        layer.self_attn.load_state_dict(state_dict)
+        layer.self_attn.to(device, dtype=torch_dtype)
+    return model
