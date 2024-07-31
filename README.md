@@ -110,11 +110,11 @@ Alternatively, you can request a single output by passing a prompt, such as:
 local-gemma "What is the capital of France?"
 ```
 
-By default, this loads the [Gemma-2 9b it](https://huggingface.co/google/gemma-2-9b-it) model. To load the [Gemma-2 27b it](https://huggingface.co/google/gemma-2-27b-it)
-model, you can set the `--model` argument accordingly:
+By default, this loads the [Gemma-2 9b it](https://huggingface.co/google/gemma-2-9b-it) model. To load the [2b it](https://huggingface.co/google/gemma-2-2b-it) or [27b it](https://huggingface.co/google/gemma-2-27b-it)
+models, you can set the `--model` argument accordingly:
 
 ```sh
-local-gemma --model 27b
+local-gemma --model 2b
 ```
 
 Local Gemma-2 will automatically find the most performant preset for your hardware, trading-off speed and memory. For more
@@ -204,15 +204,15 @@ ___
 
 ### Preset Details
 
-| Mode              | 9b Min Memory (GB) | 27b Min Memory (GB) | Weights dtype | CPU Offload |
-|-------------------|--------------------|---------------------|---------------|-------------|
-| exact             | 18.3               | 54.6                | bf16          | no          |
-| speed (CUDA-only) | 19.0               | 55.8                | bf16          | no          |
-| memory            | 7.3                | 17.0                | int4          | no          |
-| memory_extreme    | 3.7                | 4.7                 | int4          | yes         |
+| Mode              | 2b Min Memory (GB) | 9b Min Memory (GB) | 27b Min Memory (GB) | Weights dtype | CPU Offload |
+|-------------------|--------------------|--------------------|---------------------|---------------|-------------|
+| exact             | 5.3                | 18.3               | 54.6                | bf16          | no          |
+| speed (CUDA-only) | 5.4                | 19.0               | 55.8                | bf16          | no          |
+| memory            | 3.7                | 7.3                | 17.0                | int4          | no          |
+| memory_extreme    | 1,8                | 3.7                | 4.7                 | int4          | yes         |
 
 `memory_extreme` implements [CPU offloading](https://huggingface.co/docs/accelerate/en/usage_guides/big_modeling) through
-[🤗 Accelerate](https://huggingface.co/docs/accelerate/en/index), reducing memory requirements down to the largest layer 
+[🤗 Accelerate](https://huggingface.co/docs/accelerate/en/index), reducing memory requirements down to the largest layer
 in the model (which in this case is the LM head).
 
 
