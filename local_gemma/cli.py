@@ -27,13 +27,17 @@ from accelerate.utils import is_torch_version
 from huggingface_hub import get_token, login
 from local_gemma import LocalGemma2ForCausalLM
 from .utils.benchmark import benchmark
-from .utils.config import infer_device, infer_dtype, get_prompt, get_generation_kwargs, infer_memory_requirements
+from .utils.config import (
+    DTYPE_MODIFIER, infer_device, infer_dtype, get_prompt, get_generation_kwargs, infer_memory_requirements
+)
 
 torch.set_float32_matmul_precision("high")
 
 
+EXIT_COMMANDS = {"!exit", "quit", "quit()", "!exit()", "!quit", "!quit()"}
+NEW_SESSION_COMMANDS = {"!new session", "!new session()", "!new chat", "!new chat()", "!new", "!reset"}
 MODEL_NAMES = {
-    "2b": "gg-hf/gemma-2-2b-it",
+    "2b": "google/gemma-2-2b-it",
     "9b": "google/gemma-2-9b-it",
     "27b": "google/gemma-2-27b-it",
 }
@@ -67,11 +71,11 @@ parser.add_argument(
 parser.add_argument(
     "--preset",
     type=str,
-    choices=["auto", "exact", "memory", "memory_extreme"],
+    choices=["auto", "exact", "speed", "memory", "memory_extreme"],
     default="auto",
     help=(
         "Sets the optimization strategy for the local model deployment. Defaults to 'auto', which selects the best "
-        "strategy for your device. 'exact' maximises accuracy, 'memory' reduces "
+        "strategy for your device. 'exact' maximises accuracy, 'speed' maximizes speed, 'memory' reduces "
         "memory requirements through quantization, and 'memory_extreme' minimises memory requirements."
     ),
 )
@@ -158,22 +162,31 @@ def main():
             login()
 
     if args.preset == "auto":
-        args.preset = infer_memory_requirements(model_name, device, trust_remote_code=False, token=args.token)
+        args.preset, spare_memory = infer_memory_requirements(
+            model_name, device, trust_remote_code=False, token=args.token
+        )
 
-    # Triggers assisted generation on CUDA or MPS devices, assuming the default model is used. Assisted generation is
-    # not beneficial on most CPU settings. The 9b model doesn't benefit from having the 2b model as its assistant, at
-    # least on consumer GPUs.
-    if  args.model in ('27b') and ("cuda" in device or device.isdigit() or "mps" in device):
+    # Triggers assisted generation on CUDA or MPS devices, assuming the default 9b or 27b models are used. Assisted
+    # generation is not beneficial on most CPU settings. Can't be used with the speed preset.
+    if (
+        args.model in ('9b', '27b')
+        and ("cuda" in device or device.isdigit() or "mps" in device)
+        and args.preset != "speed"
+    ):
         assistant_model_name = MODEL_NAMES["2b"]
+        if spare_memory / 1e9 > 5:
+            assistant_preset = "exact"
+        else:
+            assistant_preset = "memory"
     else:
         assistant_model_name = None
 
     if not args.silent:
         print("\nLoading model with the following characteristics:")
         print("- Model name:", model_name)
-        print("- Assistant model name:", assistant_model_name)
+        print(f"- Assistant model name: {assistant_model_name if assistant_model_name is None else assistant_model_name + f' (loaded with `{assistant_preset}` preset)'}")
         print("- Device:", device)
-        print("- Data type:", str(dtype))
+        print("- Default data type:", str(dtype))
         print("- Optimization preset:", args.preset)
         print("- Generation arguments:", str(generation_kwargs))
         print("- Base prompt:", repr(base_prompt) if len(base_prompt) > 0 else "None")
@@ -207,26 +220,37 @@ def main():
 
     if assistant_model_name is not None:
         assistant_model = LocalGemma2ForCausalLM.from_pretrained(
-            assistant_model_name, preset=args.preset, token=args.token, torch_dtype=dtype, device=device)
+            assistant_model_name, preset=assistant_preset, token=args.token, torch_dtype=dtype, device=device)
     else:
         assistant_model = None
-    assistant_model = None
 
     if args.benchmark:
-        benchmark(model, tokenizer)
+        benchmark(model=model, assistant_model=assistant_model, tokenizer=tokenizer)
     else:
         if args.seed is not None:
             set_seed(args.seed)
 
         if device == "mps" and args.preset == "auto" and args.max_new_tokens is None:
-            print("Setting max new tokens to 1024 for faster mps generation. To bypass this limit, set `--max_new_tokens=2048`.")
+            print(
+                "Setting max new tokens to 1024 for faster mps generation. To bypass this limit, set "
+                "`--max_new_tokens=2048`."
+            )
             args.max_new_tokens = 1024
 
         if args.max_new_tokens is None:
+            max_cache_len = model.config.max_position_embeddings
+
+            # On specific GPUs resources are tight with assisted generation, so we artificially limit the cache size
+            if assistant_model is not None and device == "cuda":
+                cache_memory = 1e10 / (DTYPE_MODIFIER[args.preset] / 8)  # magic number :)
+                while spare_memory < cache_memory:
+                    max_cache_len = max_cache_len // 2
+                    cache_memory /= 2
+
             cache = HybridCache(
                 model.config,
                 max_batch_size=1,
-                max_cache_len=model.config.max_position_embeddings,
+                max_cache_len=max_cache_len,
                 device=model.device,
                 dtype=model.dtype,
             )
@@ -236,9 +260,14 @@ def main():
             cache = None
 
         if hasattr(model.forward, "_torchdynamo_orig_callable"):
-            print("Compiling the model forward pass. This may take a few minutes, particularly the first time it is run...")
+            print(
+                "Compiling the model forward pass. This may take a few minutes, particularly the first time it is "
+                "run..."
+            )
             if not is_torch_version(">=", "2.4"):
-                print("Install torch>=2.4.0 to cache the FX graphs across runs: https://pytorch.org/get-started/locally/")
+                print(
+                    "Install torch>=2.4.0 to cache the FX graphs across runs: https://pytorch.org/get-started/locally/"
+                )
             chat_history = [{"role": "user", "content": "The theory of relativity states"}, ]
             # Two warm-up runs: First run warms up model (triton autotuning etc). Second run records the graph and plays it. The third run is the fast path...
             for _ in range(2):
@@ -263,9 +292,9 @@ def main():
                 user_input = input(">>> ")
 
             # Handle special commands
-            if user_input in ["!exit", "quit", "quit()"]:
+            if user_input in EXIT_COMMANDS:
                 break
-            elif user_input == "!new session":
+            elif user_input in NEW_SESSION_COMMANDS:
                 chat_history = []
                 if hasattr(cache, "reset"):
                     cache.reset()

@@ -20,6 +20,7 @@ DEPS = [
     "torch>=2.1.1",
     "accelerate>=0.33.0",
     "transformers>=4.43.2",
+    # git+https://github.com/huggingface/transformers.git@2927346f4c513a217ac8ad076e494dd1adbf70e1
 ]
 
 EXTRA_CUDA_DEPS = ["bitsandbytes>=0.43.2"]

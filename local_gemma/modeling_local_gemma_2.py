@@ -74,7 +74,9 @@ class LocalGemma2ForCausalLM(Gemma2ForCausalLM):
             raise ValueError(f"Got invalid `preset` {preset}. Ensure `preset` is one of: {list(PRESET_MAPPING.keys())}")
 
         if preset == "auto":
-            preset = infer_memory_requirements(pretrained_model_name_or_path, device, trust_remote_code=trust_remote_code, token=token)
+            preset, _ = infer_memory_requirements(
+                pretrained_model_name_or_path, device, trust_remote_code=trust_remote_code, token=token
+            )
             logger.info(f"Detected device {device} and defaulting to {preset} preset.")
 
         preset_kwargs = PRESET_MAPPING[preset]

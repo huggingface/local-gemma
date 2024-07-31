@@ -22,7 +22,7 @@ NUM_RUNS = 5
 WARMUP_RUNS = 3
 
 
-def benchmark(model, tokenizer):
+def benchmark(model, assistant_model, tokenizer):
     """
     Benchmarkes the throughput of the model. Does some warmup before measuring, to remove compilation time (if
     applicable).
@@ -45,19 +45,21 @@ def benchmark(model, tokenizer):
         for max_new_tokens in MAX_NEW_TOKENS:
             print(f"\nBenchmarking with prompt_length={prompt_length} and max_new_tokens={max_new_tokens}.")
             run_name = f"prompt_length={prompt_length}, max_new_tokens={max_new_tokens}"
+            generate_kwargs = {
+                "do_sample": False,
+                "max_new_tokens": max_new_tokens,
+                "min_new_tokens": max_new_tokens,
+                "assistant_model": assistant_model,
+            }
 
             input_ids = model_inputs.input_ids[:, :prompt_length].to(model.device)
             for _ in tqdm(range(WARMUP_RUNS), desc="Warming up"):
-                model.generate(
-                    input_ids, do_sample=False, max_new_tokens=max_new_tokens, min_new_tokens=max_new_tokens
-                )
+                model.generate(input_ids, **generate_kwargs)
 
             tokens_per_second = []
             for _ in tqdm(range(NUM_RUNS), desc="Benchmarking"):
                 start = time()
-                gen_out = model.generate(
-                    input_ids, do_sample=False, max_new_tokens=max_new_tokens, min_new_tokens=max_new_tokens
-                )
+                gen_out = model.generate(input_ids, **generate_kwargs)
                 end = time()
                 if gen_out.shape[1] != prompt_length + max_new_tokens:
                     raise ValueError(
