@@ -21,7 +21,7 @@ import sys
 import torch
 from transformers import AutoTokenizer, TextStreamer, set_seed
 from transformers.cache_utils import HybridCache
-from transformers.utils import logging
+from transformers.utils import logging, is_flash_attn_2_available
 from accelerate.utils import is_torch_version
 
 from huggingface_hub import get_token, login
@@ -202,7 +202,7 @@ def main():
         # for single-turn responses, disable torch compile and enable fa2
         # this way, we skip the lengthy compilation step and return the generation to the user as quickly as possible
         torch_compile = False
-        attn_implementation = "flash_attention_2"
+        attn_implementation = "flash_attention_2" if is_flash_attn_2_available() else None
     else:
         # leave to the preset to decide these settings
         torch_compile = attn_implementation = None
