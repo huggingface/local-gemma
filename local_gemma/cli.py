@@ -231,7 +231,7 @@ def main():
         if args.seed is not None:
             set_seed(args.seed)
 
-        if device == "mps" and args.preset == "auto" and args.max_new_tokens is None:
+        if device == "mps" and args.max_new_tokens is None:
             print(
                 "Setting max new tokens to 1024 for faster mps generation. To bypass this limit, set "
                 "`--max_new_tokens=2048`."
