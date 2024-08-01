@@ -161,15 +161,15 @@ decoded_text = tokenizer.batch_decode(generated_ids)
 ```
 
 When using an instruction-tuned model (prefixed by `-it`) for conversational use, prepare the inputs using a
-chat-template. The following example loads [Gemma-2 27b it](https://huggingface.co/google/gemma-2-27b-it) model
+chat-template. The following example loads [Gemma-2 2b it](https://huggingface.co/google/gemma-2-2b-it) model
 using the "auto" preset, which automatically determines the best preset for the device:
 
 ```python
 from local_gemma import LocalGemma2ForCausalLM
 from transformers import AutoTokenizer
 
-model = LocalGemma2ForCausalLM.from_pretrained("google/gemma-2-27b-it", preset="auto")
-tokenizer = AutoTokenizer.from_pretrained("google/gemma-2-27b-it")
+model = LocalGemma2ForCausalLM.from_pretrained("google/gemma-2-2b-it", preset="auto")
+tokenizer = AutoTokenizer.from_pretrained("google/gemma-2-2b-it")
 
 messages = [
     {"role": "user", "content": "What is your favourite condiment?"},
