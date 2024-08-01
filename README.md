@@ -177,10 +177,9 @@ messages = [
     {"role": "user", "content": "Do you have mayonnaise recipes?"}
 ]
 
-encodeds = tokenizer.apply_chat_template(messages, return_tensors="pt")
-model_inputs = encodeds.to(model.device)
+model_inputs = tokenizer.apply_chat_template(messages, return_tensors="pt", return_dict=True)
 
-generated_ids = model.generate(model_inputs, max_new_tokens=1000, do_sample=True)
+generated_ids = model.generate(**model_inputs.to(model.device), max_new_tokens=1024, do_sample=True)
 decoded_text = tokenizer.batch_decode(generated_ids)
 ```
 
