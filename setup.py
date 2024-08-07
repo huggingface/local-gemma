@@ -19,8 +19,7 @@ DEPS = [
     "setuptools",
     "torch>=2.1.1",
     "accelerate>=0.33.0",
-    # "transformers>=4.44.0",  replace as soon as it is released
-    "transformers @ git+https://github.com/huggingface/transformers.git@92abe6033491dcaa958235e551f40f6b417d3771"
+    "transformers>=4.44.0",
 ]
 
 EXTRA_CUDA_DEPS = ["bitsandbytes>=0.43.2"]
